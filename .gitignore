@@ -1,0 +1,47 @@
+# ============================================
+# Claude Code dotfiles — .gitignore
+# 只版控「人工產出的知識資產」，排除機器產生的一切
+# ============================================
+
+# === 全部排除，再逐項加回 ===
+*
+
+# === 加回：全域規則 ===
+!.gitignore
+!CLAUDE.md
+!settings.json
+
+# === 加回：Hook 腳本 ===
+!scripts/
+!scripts/**
+
+# === 加回：自建 Skills ===
+!skills/
+!skills/*/
+!skills/*/SKILL.md
+!skills/*/references/
+!skills/*/references/**
+!skills/*/scripts/
+!skills/*/scripts/**
+!skills/*/docs/
+!skills/*/docs/**
+# === 排除：skill 內的產物 ===
+skills/*/.venv/
+skills/*/__pycache__/
+skills/*/scripts/__pycache__/
+skills/*/scripts/lib/__pycache__/
+*-workspace/
+# zlibrary 是外部 repo + 巨大 .venv，整個排除
+skills/zlibrary-to-notebooklm/
+
+# === 排除：所有機器產生的目錄 ===
+# projects/ (對話歷史 + auto memory)
+# plugins/ (可重裝的第三方 plugin)
+# cache/, chrome/, statsig/, telemetry/
+# todos/, tasks/, plans/
+# session-env/, shell-snapshots/, paste-cache/
+# ide/, debug/, backups/, downloads/
+# file-history/, usage-data/, mcp-servers/
+# memory/ (全域 auto memory)
+# history.jsonl, stats-cache.json
+# .DS_Store
