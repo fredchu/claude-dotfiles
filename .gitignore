@@ -8,6 +8,8 @@
 
 # === 加回：全域規則 ===
 !.gitignore
+!README.md
+!LICENSE
 !CLAUDE.md
 !settings.json
 
