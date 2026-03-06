@@ -1,5 +1,7 @@
 # claude-dotfiles
 
+[繁體中文](README.zh-TW.md) | English
+
 My [Claude Code](https://docs.anthropic.com/en/docs/claude-code) configuration — skills, hooks, settings, and a three-tier memory system.
 
 ## What's in here

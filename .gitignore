@@ -9,6 +9,7 @@
 # === 加回：全域規則 ===
 !.gitignore
 !README.md
+!README.zh-TW.md
 !LICENSE
 !CLAUDE.md
 !settings.json
