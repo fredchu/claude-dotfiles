@@ -37,6 +37,12 @@ skills/*/scripts/lib/__pycache__/
 # zlibrary 是外部 repo + 巨大 .venv，整個排除
 skills/zlibrary-to-notebooklm/
 
+# === 排除：私人 / 非通用 Skills ===
+skills/corporate-forensic-auditor/
+skills/convertible-arbitrage-auditor/
+skills/buddha-model/
+skills/subtitle-polisher/
+
 # === 排除：所有機器產生的目錄 ===
 # projects/ (對話歷史 + auto memory)
 # plugins/ (可重裝的第三方 plugin)
