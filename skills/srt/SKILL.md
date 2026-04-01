@@ -19,11 +19,12 @@ YouTube 連結 或 本地影片/音檔
   ↓ Step 0 (if YouTube): yt-dlp 下載影片
   ↓ Step 0.5 (if 投影片文字): 抽取本集術語補充表
 本地影片檔
-  ↓ Step 1: subtitle.sh (Breeze ASR)
-原始 SRT (.srt)
+  ├─ Step 1:  subtitle.sh (Breeze ASR)        ─┐ 平行
+  └─ Step 1': vibevoice_asr.py (VV ASR)       ─┘
+原始 SRT (.srt) + VV JSON
   ↓ Step 1.5: srt_hallucination_fix.py (幻覺偵測+自動修復)
   ↓ Step 2a: srt_preprocess.py → _2a_preprocessed.srt
-  ↓ Step 2b: Agent subagent (Sonnet) 逐段校正 → _2b_corrected.srt
+  ↓ Step 2b: Agent subagent (Sonnet) 逐段校正 + VV 交叉參考 → _2b_corrected.srt
   ↓ Step 2c: 複查 + srt_postprocess.py → _2c_reviewed.srt → _2c_final.srt
   ↓ Step 3: 術語學習
 術語表自動成長
@@ -126,6 +127,69 @@ mv "<原始路徑>" "${VIDEO_DIR}/"
 
 在 Step 2b 組裝 prompt 時，把這份補充表加在術語表後面，作為額外的「本集投影片術語」區塊。**不要**合併進通用術語表 `terms_austin_v2.txt`。
 
+### Step 1': VibeVoice 平行 ASR（與 Step 1 同時跑）
+
+VibeVoice 做輔助 ASR，產出供 Step 2b 交叉參考。與 Step 1 用兩個平行 Bash 呼叫同時執行。
+
+**短音檔（≤ 55 分鐘）— 直接跑：**
+
+```bash
+python3 /Users/fredchu/dev/vibevoice-poc/vibevoice_asr.py \
+    "${VIDEO_DIR}/<影片或音檔名>" \
+    --terms "${CORRECT_DIR}/terms_austin_v2.txt" \
+    --terms-max 50 \
+    --json \
+    --output "${VIDEO_DIR}/<檔名>_vibevoice.srt"
+```
+
+**長音檔（> 55 分鐘）— 切段跑再合併 JSON：**
+
+`mlx_audio` 套件硬限制 59 分鐘（`MAX_DURATION_SECONDS = 59 * 60`），超過會自動 trim 截斷。用 ffmpeg 在靜音點切段，每段 ≤ 50 分鐘（留安全餘量），各自跑 VV 再合併 JSON（時間戳偏移對齊）：
+
+```bash
+# 1. 偵測靜音點，在最接近 45 分鐘倍數的靜音處切段
+ffmpeg -i "${VIDEO_DIR}/<影片或音檔名>" -af silencedetect=noise=-30dB:d=0.5 -f null - 2>&1 | grep silence_end
+
+# 2. 每段各自跑 VV（可平行）
+python3 /Users/fredchu/dev/vibevoice-poc/vibevoice_asr.py \
+    "${VIDEO_DIR}/<檔名>_part1.wav" \
+    --terms "${CORRECT_DIR}/terms_austin_v2.txt" --terms-max 50 \
+    --json --output "${VIDEO_DIR}/<檔名>_vv_part1.srt"
+# ... 同理 part2, part3, ...
+
+# 3. 合併 JSON：偏移每段的 Start/End 時間戳
+python3 -c "
+import json, sys
+offset = 0.0
+merged = []
+for i in range(1, int(sys.argv[1]) + 1):
+    segs = json.load(open(f'${VIDEO_DIR}/<檔名>_vv_part{i}_vibevoice.json'))
+    for s in segs:
+        for key in ['Start', 'start', 'start_time']:
+            if key in s: s[key] = float(s[key]) + offset
+        for key in ['End', 'end', 'end_time']:
+            if key in s: s[key] = float(s[key]) + offset
+    merged.extend(segs)
+    # offset = 該段結束時間（從 ffmpeg 切段記錄取得）
+    if segs:
+        offset = max(float(s.get('End', s.get('end', s.get('end_time', 0)))) for s in segs)
+json.dump(merged, open('${VIDEO_DIR}/<檔名>_vibevoice.json', 'w'), ensure_ascii=False, indent=2)
+print(f'Merged {len(merged)} segments')
+" <段數>
+```
+
+產出：
+- `<檔名>_vibevoice.srt` — VV 的 SRT（備用）
+- `<檔名>_vibevoice.json` — VV 的 segments JSON（Step 2b 用），欄位格式：`Start`/`End`/`Content`/`Speaker`
+
+注意：
+- 如果 VV 執行失敗（模型未安裝等），pipeline 繼續跑，Step 2b 跳過 VV 參考
+- 用 `--breeze` 時才啟用 Step 1'（Whisper 模式不用 VV，因為 VV 底層也是 Whisper 架構）
+- `mlx_audio` 套件硬限制 59 分鐘（`MAX_DURATION_SECONDS = 59 * 60`），超過會靜默 trim — 必須在 pipeline 端切段，不能依賴 VV 自己處理
+- `vibevoice_asr.py` 的 `max_tokens` 已改為 32768（原 8192 對 > 30 分鐘音檔不夠，會導致 0 segments）
+- `generate()` 其他可調參數：`repetition_penalty`（預設 1.2）、`prefill_step_size`（預設 2048，長音檔可提高以降低記憶體峰值）
+- **不要同時跑兩個 VV instance** — 會搶 Apple Silicon GPU 記憶體互相 thrash，必須序列執行
+
 ### Step 1: ASR 語音辨識
 
 ```bash
@@ -201,12 +265,13 @@ python3 "${CORRECT_DIR}/srt_preprocess.py" "<ASR 產出的 SRT>" "<輸出路徑>
 
    ```python
    python3 -c "
-   import re, os
+   import re, os, json
 
    CORRECT_DIR = '${CORRECT_DIR}'
    WORK_DIR = '<工作目錄>'
    SRT_FILE = '<preprocessed SRT 路徑>'
    SLIDE_TERMS = '<投影片術語路徑或空字串>'  # 沒有就留空
+   VV_JSON = '<VV JSON 路徑或空字串>'  # Step 1' 產出的 _vibevoice.json，沒有就留空
 
    # 讀取 prompt 模板和術語表
    prompt = open(f'{CORRECT_DIR}/srt_correct_prompt.txt').read()
@@ -220,6 +285,36 @@ python3 "${CORRECT_DIR}/srt_preprocess.py" "<ASR 產出的 SRT>" "<輸出路徑>
 
    system_prompt = prompt.replace('{{TERMINOLOGY_SECTION}}', term_section)
 
+   # 如果有 VV JSON，在 system prompt 末尾加 VV 交叉參考 section
+   vv_segments = []
+   if VV_JSON and os.path.exists(VV_JSON):
+       vv_segments = json.load(open(VV_JSON))
+       system_prompt += '''
+
+## 交叉參考：VibeVoice ASR
+
+以下每段字幕會附帶另一個 ASR 引擎（VibeVoice，有 hotwords 注入）對同一段音檔的辨識結果。
+VibeVoice 的英文專有名詞和部分中文財經術語辨識較準確，但語氣詞過多。
+
+使用規則：
+1. 英文 ticker / 專有名詞（如 ETF 代碼）→ 以 VibeVoice 版本為準
+2. 中文財經術語 → 如果 VibeVoice 的詞彙更合理且語境正確，採用之
+3. 語氣詞（哦、呃、嗯）→ 忽略 VibeVoice 多出的部分
+4. 已知 VibeVoice 錯誤（不要採用）：
+   - 「值信」「指信」應為「質性」
+   - 「MOT」應為「MOAT」
+   - 「SHD」應為「SPHD」
+   - 「KVW」應為「KWEB」
+   - 「BOZ」應為「BOTZ」
+   - 「QILD」應為「QYLD」
+   - 「XILP」應為「XLP」
+   - 「SkyYY」應為「SKYY」
+5. 不確定時 → 保留 Breeze（主 ASR）的版本
+
+VibeVoice 參考文字會寫在每段的 _vv_ref_<N>.txt 檔案中。
+'''
+       print(f'VV JSON loaded: {len(vv_segments)} segments')
+
    # 寫出 system prompt
    with open(f'{WORK_DIR}/_system_prompt.txt', 'w') as f:
        f.write(system_prompt)
@@ -232,7 +327,32 @@ python3 "${CORRECT_DIR}/srt_preprocess.py" "<ASR 產出的 SRT>" "<輸出路徑>
    for i in range(0, len(blocks), SEG_SIZE):
        segments.append(blocks[i:i+SEG_SIZE])
 
-   # 寫出每段 + 上文參考
+   # 輔助函數：從 SRT block 提取時間戳（毫秒）
+   def parse_srt_time_ms(block):
+       lines = block.strip().split('\n')
+       if len(lines) >= 2 and '-->' in lines[1]:
+           tc = lines[1].strip()
+           parts = tc.split(' --> ')
+           def to_ms(t):
+               h, m, rest = t.split(':')
+               s, ms = rest.split(',')
+               return int(h)*3600000 + int(m)*60000 + int(s)*1000 + int(ms)
+           return to_ms(parts[0]), to_ms(parts[1])
+       return None, None
+
+   # 輔助函數：提取 VV 參考文字
+   def extract_vv_reference(seg_start_ms, seg_end_ms):
+       parts = []
+       for seg in vv_segments:
+           vv_start = float(seg.get('Start', seg.get('start', seg.get('start_time', 0)))) * 1000
+           vv_end = float(seg.get('End', seg.get('end', seg.get('end_time', 0)))) * 1000
+           if vv_end > seg_start_ms and vv_start < seg_end_ms:
+               text = seg.get('Content', seg.get('text', '')).strip()
+               if text and text != '[Silence]':
+                   parts.append(text)
+       return '\n'.join(parts)
+
+   # 寫出每段 + 上文參考 + VV 參考
    for idx, seg in enumerate(segments):
        with open(f'{WORK_DIR}/_seg_{idx}.srt', 'w') as f:
            f.write('\n\n'.join(seg) + '\n')
@@ -246,18 +366,32 @@ python3 "${CORRECT_DIR}/srt_preprocess.py" "<ASR 產出的 SRT>" "<輸出路徑>
                ctx_lines.extend(text_lines)
            with open(f'{WORK_DIR}/_ctx_{idx}.txt', 'w') as f:
                f.write('\n'.join(ctx_lines))
+       # VV 參考：從 VV segments 提取時間重疊的文字
+       if vv_segments:
+           first_start, _ = parse_srt_time_ms(seg[0])
+           _, last_end = parse_srt_time_ms(seg[-1])
+           if first_start is not None and last_end is not None:
+               vv_ref = extract_vv_reference(first_start, last_end)
+               with open(f'{WORK_DIR}/_vv_ref_{idx}.txt', 'w') as f:
+                   f.write(vv_ref if vv_ref else 'NO_VV_REFERENCE')
+           else:
+               with open(f'{WORK_DIR}/_vv_ref_{idx}.txt', 'w') as f:
+                   f.write('NO_VV_REFERENCE')
 
    print(f'Total blocks: {len(blocks)}')
    print(f'Number of segments: {len(segments)}')
    for i, s in enumerate(segments):
        print(f'  Segment {i}: {len(s)} blocks')
+   if vv_segments:
+       print(f'VV reference files written for {len(segments)} segments')
    "
    ```
 
    這個腳本產出：
-   - `_system_prompt.txt`：組裝好的完整 system prompt
+   - `_system_prompt.txt`：組裝好的完整 system prompt（含 VV 交叉參考規則，如有）
    - `_seg_0.srt` ~ `_seg_N.srt`：每段 SRT
    - `_ctx_1.txt` ~ `_ctx_N.txt`：每段的上文參考（第一段沒有）
+   - `_vv_ref_0.txt` ~ `_vv_ref_N.txt`：每段的 VV 參考文字（如有 VV JSON）
 
 2. **平行發起所有 subagent**：用單一訊息同時發起所有 Agent tool 呼叫：
 
@@ -275,11 +409,15 @@ python3 "${CORRECT_DIR}/srt_preprocess.py" "<ASR 產出的 SRT>" "<輸出路徑>
    1. 用 Read 工具讀取 system prompt：<工作目錄>/_system_prompt.txt
    2. 用 Read 工具讀取待校正字幕：<工作目錄>/_seg_<N>.srt
    3. [如果 N > 0] 用 Read 工具讀取上文參考：<工作目錄>/_ctx_<N>.txt
-   4. 依照 system prompt 的規則校正字幕
-   5. 用 Write 工具把校正結果寫入：<工作目錄>/_seg_<N>_corrected.srt
+   4. [如果檔案存在] 用 Read 工具讀取 VibeVoice 參考：<工作目錄>/_vv_ref_<N>.txt
+      - 如果內容是 NO_VV_REFERENCE 則跳過
+      - 否則交叉參考 VibeVoice 結果，特別注意英文名詞和財經術語
+   5. 依照 system prompt 的規則校正字幕
+   6. 用 Write 工具把校正結果寫入：<工作目錄>/_seg_<N>_corrected.srt
 
    重要：
    - 上文參考僅供理解語境，不要輸出這些內容
+   - VibeVoice 參考僅供交叉比對，不要直接複製其語氣詞
    - 輸出必須是完整的 SRT 格式（含序號、時間軸、字幕文字）
    - 完成後回報修改了多少條
    ```
@@ -510,8 +648,10 @@ pipeline 完成後，刪除 `${VIDEO_DIR}` 內的中間產物，只保留成品�
 
 ```bash
 rm -f "${VIDEO_DIR}"/_seg_*.srt "${VIDEO_DIR}"/_ctx_*.txt \
+      "${VIDEO_DIR}"/_vv_ref_*.txt \
       "${VIDEO_DIR}"/_review_seg_*.srt "${VIDEO_DIR}"/_review_seg_*_fixes.txt \
-      "${VIDEO_DIR}"/_system_prompt.txt "${VIDEO_DIR}"/_review_prompt.txt
+      "${VIDEO_DIR}"/_system_prompt.txt "${VIDEO_DIR}"/_review_prompt.txt \
+      "${VIDEO_DIR}"/*_vv_part*.wav "${VIDEO_DIR}"/*_vv_part*_vibevoice.json
 ```
 
 清理完 `${VIDEO_DIR}` 後，也要檢查 pipeline 過程中是否在其他位置留下暫存目錄（如 `media/tmp_download/`、WAV 暫存檔等），有的話一併刪除。
@@ -519,6 +659,7 @@ rm -f "${VIDEO_DIR}"/_seg_*.srt "${VIDEO_DIR}"/_ctx_*.txt \
 保留的成品（供除錯與階段比較）：
 - 原始影片/音檔
 - ASR 原始 SRT（`.srt`）
+- VibeVoice SRT + JSON（`_vibevoice.srt`、`_vibevoice.json`，如有）
 - 預處理後（`_2a_preprocessed.srt`）— 可比較 ASR→預處理的差異
 - LLM 校正後（`_2b_corrected.srt`）— 可比較預處理→LLM 校正的差異
 - 複查後（`_2c_reviewed.srt`）— 可比較校正→複查的差異
