@@ -328,9 +328,7 @@ done
 
 ## Stage 6a: LLM 結構化
 
-### 🧠 序列產出 4 項（預設：Ollama gemma4:26b）
-
-每項讀取 corrected-all.json，產出寫入對應 .md 檔：
+### 🧠 產出 4 項（預設：Ollama gemma4:26b）
 
 | 產出 | 檔案 | 要求 |
 |------|------|------|
@@ -340,6 +338,10 @@ done
 | Q&A | `/tmp/podscribe-work/qa.md` | 6-8 題，帶時間戳參考 |
 
 **語言規則**：中文播客 → 繁體中文產出。英文播客 → 全部繁體中文產出，關鍵字保留英文原文加中文說明，高光引用附英文原句。
+
+#### 短文本路徑（corrected-all.json ≤ 15K chars）
+
+直接把整個 corrected-all.json 餵給 Gemma，序列產出 4 項。適用大多數 15-60 分鐘 podcast。
 
 ```bash
 OLLAMA_LLM=/Users/fredchu/Documents/For_Claude/scripts/subtitle/srt_correct/ollama_llm.py
@@ -353,30 +355,54 @@ PROMPT
 python3 "$OLLAMA_LLM" --system /tmp/podscribe-work/summary_sys.txt \
     --user "$TRANSCRIPT" --output /tmp/podscribe-work/summary.md --max-tokens 4096
 
-# 2. Highlights
-cat > /tmp/podscribe-work/highlights_sys.txt << 'PROMPT'
-你是 podcast 高光片段提取助手。從逐字稿選出 8-10 個精彩引言或觀點。
-每個附時間戳、原文引用、一句話說明為什麼值得注意。markdown 格式，繁體中文。
-PROMPT
-python3 "$OLLAMA_LLM" --system /tmp/podscribe-work/highlights_sys.txt \
-    --user "$TRANSCRIPT" --output /tmp/podscribe-work/highlights.md --max-tokens 4096
-
-# 3. Keywords
-cat > /tmp/podscribe-work/keywords_sys.txt << 'PROMPT'
-從逐字稿提取關鍵字，分三類：人名、公司/產品、概念/術語，各 5-10 個。markdown 格式，繁體中文。
-PROMPT
-python3 "$OLLAMA_LLM" --system /tmp/podscribe-work/keywords_sys.txt \
-    --user "$TRANSCRIPT" --output /tmp/podscribe-work/keywords.md --max-tokens 2048
-
-# 4. Q&A
-cat > /tmp/podscribe-work/qa_sys.txt << 'PROMPT'
-根據逐字稿產出 6-8 個問答題，附時間戳參考。markdown 格式，繁體中文。
-PROMPT
-python3 "$OLLAMA_LLM" --system /tmp/podscribe-work/qa_sys.txt \
-    --user "$TRANSCRIPT" --output /tmp/podscribe-work/qa.md --max-tokens 4096
+# 2-4: Highlights, Keywords, Q&A（同上模式）
 ```
 
-預計耗時：4 項 × ~60s = ~4 分鐘（vs Sonnet 平行 ~30 秒）。
+#### 長文本路徑（corrected-all.json > 15K chars）— Map-Reduce
+
+超過 Gemma context 上限時，先分 chunk 做局部摘要，再彙整。
+
+**Map 階段**：對每個 `chunk_N_corrected.json` 提取純文字，產出局部摘要。
+
+```bash
+OLLAMA_LLM=/Users/fredchu/Documents/For_Claude/scripts/subtitle/srt_correct/ollama_llm.py
+CHUNK_TEXT=~/.claude/skills/podcast-digest/scripts/chunk_text.py
+
+cat > /tmp/podscribe-work/map_sys.txt << 'PROMPT'
+你是播客摘要助手。摘要以下這段播客內容。
+產出 3-5 句重點摘要，附上時間範圍 [MM:SS-MM:SS]。
+列出這段中最值得注意的 1-2 個引言或觀點。
+列出出現的人名和關鍵術語。
+markdown 格式，繁體中文。直接輸出。
+PROMPT
+
+for i in $(seq 0 $((NUM_CHUNKS - 1))); do
+    python3 "$CHUNK_TEXT" extract --input "/tmp/podscribe-work/chunk_${i}_corrected.json" \
+        --output "/tmp/podscribe-work/chunk_${i}_for_6a.txt"
+    python3 "$OLLAMA_LLM" \
+        --system /tmp/podscribe-work/map_sys.txt \
+        --user "/tmp/podscribe-work/chunk_${i}_for_6a.txt" \
+        --output "/tmp/podscribe-work/chunk_${i}_map.md" \
+        --max-tokens 1024
+done
+
+# 合併所有局部摘要
+cat /tmp/podscribe-work/chunk_*_map.md > /tmp/podscribe-work/all_maps.md
+```
+
+**Reduce 階段**：把合併的局部摘要餵給 Gemma，產出最終 4 項。
+
+```bash
+# all_maps.md 通常 ~5K-10K chars，在 Gemma context 範圍內
+# 用現有的 4 個 prompt 模板，但 --user 改為 all_maps.md
+python3 "$OLLAMA_LLM" --system /tmp/podscribe-work/summary_sys.txt \
+    --user /tmp/podscribe-work/all_maps.md --output /tmp/podscribe-work/summary.md --max-tokens 4096
+# Highlights, Keywords, Q&A 同上
+```
+
+**注意**：Reduce 的 prompt 要調整為「根據以下各段摘要」而非「根據逐字稿」，避免 Gemma 以為輸入是原始逐字稿。
+
+**判斷閾值**：用 `wc -c corrected-all.json` 檢查。≤ 15000 走短文本，> 15000 走 map-reduce。
 
 #### Stage 6a 替代路徑：Sonnet（--cloud 模式）
 
