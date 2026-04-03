@@ -199,7 +199,7 @@ for b in blocks:
             sec, ms = rest.split(',')
             return int(h)*3600 + int(m)*60 + int(sec) + int(ms)/1000
         segs.append({'start': to_sec(s), 'end': to_sec(e), 'text': ' '.join(lines[2:])})
-json.dump(segs, open('/tmp/podscribe-work/asr.json', 'w'), ensure_ascii=False, indent=2)
+json.dump({'segments': segs}, open('/tmp/podscribe-work/asr.json', 'w'), ensure_ascii=False, indent=2)
 print(f'{len(segs)} segments')
 "
 ```
