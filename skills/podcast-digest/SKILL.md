@@ -249,34 +249,32 @@ fi
 
 ### 🧠 分 chunks 校正（預設：Ollama gemma4:26b 序列）
 
-讀取 aligned.json，按 ~5000 chars 分 chunks，逐 chunk 校正。
+讀取 aligned.json，按 ~5000 chars 分 chunks，逐 chunk 校正。**Gemma 只處理純文字，JSON 結構由腳本維護。**
 
 ```bash
 OLLAMA_LLM=/Users/fredchu/Documents/For_Claude/scripts/subtitle/srt_correct/ollama_llm.py
+CHUNK_TEXT=~/.claude/skills/podcast-digest/scripts/chunk_text.py
 
 for chunk in /tmp/podscribe-work/chunk_*.json; do
     N=$(echo "$chunk" | grep -oP 'chunk_\K\d+')
+    # 1. 提取純文字
+    python3 "$CHUNK_TEXT" extract --input "$chunk" --output "/tmp/podscribe-work/chunk_${N}.txt"
+    # 2. Gemma 校正純文字
     python3 "$OLLAMA_LLM" \
         --system /tmp/podscribe-work/correct_sys.txt \
-        --user "$chunk" \
-        --output "/tmp/podscribe-work/chunk_${N}_corrected.json" \
-        --json --max-tokens 8192
+        --user "/tmp/podscribe-work/chunk_${N}.txt" \
+        --output "/tmp/podscribe-work/chunk_${N}_corrected.txt" \
+        --max-tokens 8192
+    # 3. 合併回 JSON
+    python3 "$CHUNK_TEXT" merge --input "$chunk" --text "/tmp/podscribe-work/chunk_${N}_corrected.txt" --output "/tmp/podscribe-work/chunk_${N}_corrected.json"
 done
 ```
 
 **校正 system prompt 組裝規則**（寫入 `/tmp/podscribe-work/correct_sys.txt`）：
 
 1. 基礎指令：「你是播客逐字稿校正專家。校正以下 ASR 輸出。」+ 校正規則（標點、錯字、斷句、分段）
-2. **如果 `/tmp/podscribe-work/nlm-terms.txt` 存在且非空**，在校正規則後加入：
-   ```
-   ## 術語表（必須逐條比對）
-   以下是本集播客出現的專有名詞和術語。校正時必須優先匹配這些術語：
-   
-   {nlm-terms.txt 的內容}
-   ```
-3. 尾部指令：「讀取 JSON array，校正每個 segment 的 text，保留 start/end/speaker 不變。輸出校正後的 JSON array。」
-4. JSON 安全指令：「重要：直接輸出純 JSON，不要加 ``` 或任何 markdown 標記。第一個字元必須是 [，最後一個字元必須是 ]。」
-```
+2. **如果 `/tmp/podscribe-work/nlm-terms.txt` 存在且非空**，加入術語表區塊
+3. 格式指令：「輸入是編號段落，每段一個講者的發言。輸出保持相同編號格式，只修正文字內容。不要改變段落數量或編號。」
 
 校正完合併為 `/tmp/podscribe-work/corrected-all.json`。
 
@@ -368,28 +366,31 @@ python3 "$OLLAMA_LLM" --system /tmp/podscribe-work/qa_sys.txt \
 
 翻譯規則：繁體中文（台灣用語）、英文專有名詞保留原文、技術術語首次出現加中文說明。
 
+**Gemma 只處理純文字翻譯，JSON 結構由腳本維護。**
+
 ```bash
-for chunk in /tmp/podscribe-work/chunk_*.json; do
-    N=$(echo "$chunk" | grep -oP 'chunk_\K\d+')
+CHUNK_TEXT=~/.claude/skills/podcast-digest/scripts/chunk_text.py
+
+for chunk in /tmp/podscribe-work/chunk_*_corrected.json; do
+    N=$(echo "$chunk" | sed 's/.*chunk_//;s/_corrected.json//')
+    # 1. 提取純文字
+    python3 "$CHUNK_TEXT" extract --input "$chunk" --output "/tmp/podscribe-work/chunk_${N}_for_translate.txt"
+    # 2. Gemma 翻譯純文字
     python3 "$OLLAMA_LLM" \
         --system /tmp/podscribe-work/translate_sys.txt \
-        --user "$chunk" \
-        --output "/tmp/podscribe-work/chunk_${N}_translated.json" \
-        --json --max-tokens 8192
+        --user "/tmp/podscribe-work/chunk_${N}_for_translate.txt" \
+        --output "/tmp/podscribe-work/chunk_${N}_translated.txt" \
+        --max-tokens 8192
+    # 3. 合併翻譯結果為 text_zh
+    python3 "$CHUNK_TEXT" merge-translation --input "$chunk" --text "/tmp/podscribe-work/chunk_${N}_translated.txt" --output "/tmp/podscribe-work/chunk_${N}_translated.json"
 done
 ```
 
 **翻譯 system prompt 組裝規則**（寫入 `/tmp/podscribe-work/translate_sys.txt`）：
 
-1. 基礎指令：「你是翻譯專家。將以下英文播客逐字稿翻譯成繁體中文（台灣用語）。英文專有名詞保留原文，技術術語首次出現加中文說明。對每個 segment 加 text_zh 欄位。輸出 JSON array。」
-2. **如果 `/tmp/podscribe-work/nlm-terms.txt` 存在且非空**，在基礎指令後加入：
-   ```
-   ## 術語對照表
-   翻譯時請遵循以下術語的統一譯法：
-   
-   {nlm-terms.txt 的內容}
-   ```
-3. JSON 安全指令：「重要：直接輸出純 JSON，不要加 ``` 或任何 markdown 標記。第一個字元必須是 [，最後一個字元必須是 ]。」
+1. 基礎指令：「你是翻譯專家。將以下英文播客逐字稿翻譯成繁體中文（台灣用語）。英文專有名詞保留原文，技術術語首次出現加中文說明。」
+2. 格式指令：「輸入是編號段落，每段一個講者的發言。輸出保持相同編號格式，只翻譯文字內容。不要改變段落數量或編號。」
+3. **不注入 NLM 術語表**（翻譯不需要，英文原文已正確）
 
 #### Stage 6b 替代路徑：Sonnet（--cloud 模式）
 
@@ -466,6 +467,7 @@ slug 化：日期前綴 `YYYY-MM-DD_`、英文全小寫、空格/破折號 → `
 | `scripts/align.py` | 對齊合併 + auto speaker detection | 完整 | 否 |
 | `scripts/md2html.py` | Markdown → 語義化 HTML | 兩者 | 否 |
 | `scripts/assemble.py` | 組裝最終 markdown | 完整 | 否 |
+| `scripts/chunk_text.py` | JSON ↔ 編號純文字轉換（extract/merge/merge-translation） | 完整 | 否 |
 | `scripts/extract-terms.py` | NLM 術語抽取（upload + ask + clean） | 完整 | 否 |
 | `scripts/push_readwise.py` | 推送 Readwise Reader | 兩者 | 否 |
 
