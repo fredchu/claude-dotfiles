@@ -259,13 +259,15 @@ for chunk in /tmp/podscribe-work/chunk_*.json; do
 
 讀取 JSON array，校正每個 segment 的 text，保留 start/end/speaker 不變。
 輸出校正後的 JSON array。
+
+重要：直接輸出純 JSON，不要加 ```json 或任何 markdown 標記。第一個字元必須是 [，最後一個字元必須是 ]。
 PROMPT
 
     python3 "$OLLAMA_LLM" \
         --system /tmp/podscribe-work/correct_sys.txt \
         --user "$chunk" \
         --output "/tmp/podscribe-work/chunk_${N}_corrected.json" \
-        --max-tokens 8192
+        --json --max-tokens 8192
 done
 ```
 
@@ -365,6 +367,8 @@ cat > /tmp/podscribe-work/translate_sys.txt << 'PROMPT'
 你是翻譯專家。將以下英文播客逐字稿翻譯成繁體中文（台灣用語）。
 英文專有名詞保留原文，技術術語首次出現加中文說明。
 對每個 segment 加 text_zh 欄位。輸出 JSON array。
+
+重要：直接輸出純 JSON，不要加 ```json 或任何 markdown 標記。第一個字元必須是 [，最後一個字元必須是 ]。
 PROMPT
 
 for chunk in /tmp/podscribe-work/chunk_*.json; do
@@ -373,7 +377,7 @@ for chunk in /tmp/podscribe-work/chunk_*.json; do
         --system /tmp/podscribe-work/translate_sys.txt \
         --user "$chunk" \
         --output "/tmp/podscribe-work/chunk_${N}_translated.json" \
-        --max-tokens 8192
+        --json --max-tokens 8192
 done
 ```
 
