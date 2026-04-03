@@ -177,9 +177,31 @@ curl -sI "$COVER_URL" | head -1 | grep -q "200" || COVER_URL=""
 
 ### 🔧 ASR（按語言路由）
 
-中文：
+中文（Breeze ASR 25，輸出 SRT → 轉 JSON）：
 ```bash
-xcrun --sdk macosx swift ~/.claude/skills/podcast-digest/scripts/asr-zh.swift "$AUDIO_PATH" > /tmp/podscribe-work/asr.json
+# 1. Breeze ASR → SRT
+mlx_whisper --model "eoleedi/Breeze-ASR-25-mlx" --language zh \
+  --output-format srt --condition-on-previous-text False \
+  --output-dir /tmp/podscribe-work --output-name asr-breeze \
+  "$AUDIO_PATH"
+
+# 2. SRT → JSON segments（供 align.py 使用）
+python3 -c "
+import re, json
+blocks = re.split(r'\n\n+', open('/tmp/podscribe-work/asr-breeze.srt').read().strip())
+segs = []
+for b in blocks:
+    lines = b.strip().split('\n')
+    if len(lines) >= 3 and '-->' in lines[1]:
+        s, e = lines[1].split(' --> ')
+        def to_sec(t):
+            h, m, rest = t.strip().split(':')
+            sec, ms = rest.split(',')
+            return int(h)*3600 + int(m)*60 + int(sec) + int(ms)/1000
+        segs.append({'start': to_sec(s), 'end': to_sec(e), 'text': ' '.join(lines[2:])})
+json.dump(segs, open('/tmp/podscribe-work/asr.json', 'w'), ensure_ascii=False, indent=2)
+print(f'{len(segs)} segments')
+"
 ```
 
 英文（必須加 `--output-json` 取得 word-level timestamps）：
@@ -465,7 +487,7 @@ slug 化：日期前綴 `YYYY-MM-DD_`、英文全小寫、空格/破折號 → `
 |------|------|------|------------|
 | `scripts/nlm-digest.py` | NLM 摘要（notebook 管理 + ask + 清理） | 輕量 | 否 |
 | `scripts/download.sh` | 下載 + ffmpeg 轉檔 | 完整 | 否 |
-| `scripts/asr-zh.swift` | 中文 ASR（Speech.framework） | 完整 | 否 |
+| `scripts/asr-zh.swift` | 中文 ASR（已棄用，改用 Breeze） | — | — |
 | `scripts/align.py` | 對齊合併 + auto speaker detection | 完整 | 否 |
 | `scripts/md2html.py` | Markdown → 語義化 HTML | 兩者 | 否 |
 | `scripts/assemble.py` | 組裝最終 markdown | 完整 | 否 |
@@ -479,7 +501,7 @@ slug 化：日期前綴 `YYYY-MM-DD_`、英文全小寫、空格/破折號 → `
 
 | 元件 | 技術 |
 |------|------|
-| 中文 ASR | Speech.framework DictationTranscriber |
+| 中文 ASR | Breeze ASR 25（mlx_whisper + eoleedi/Breeze-ASR-25-mlx） |
 | 英文 ASR | FluidAudio Parakeet TDT v3 |
 | 講者分離 | FluidAudio Offline VBx |
 | 對齊合併 | align.py |
