@@ -29,6 +29,15 @@ description: "播客消化 pipeline：URL/音檔 → 帶講者分離的逐字稿
 | 「深讀 最新的{節目}」 | 完整（SSH Mini CC 找音檔） |
 | 用戶貼 URL 但沒有明確指示 | **詢問**：「要摘要就好，還是深讀出完整逐字稿？」 |
 
+### LLM 後端選項（完整模式）
+
+| 旗標 | LLM | 說明 |
+|------|-----|------|
+| （預設） | Claude Sonnet subagents | 最高品質，需要 API 額度 |
+| `--local` | Ollama gemma4:26b | 免費、離線、隱私。品質接近 Sonnet（摘要/高光/翻譯）|
+
+用戶說「用本地跑」「離線模式」「省 token」→ 自動啟用 `--local`。
+
 ---
 
 # 輕量模式（NLM Pipeline）
@@ -234,6 +243,40 @@ python3 ~/.claude/skills/podcast-digest/scripts/align.py \
 
 校正完合併為 `/tmp/podscribe-work/corrected-all.json`。
 
+#### Stage 5 替代路徑：本地 LLM（--local 模式）
+
+取代 Sonnet subagent，用 ollama_llm.py 逐 chunk 校正。
+
+```bash
+OLLAMA_LLM=/Users/fredchu/Documents/For_Claude/scripts/subtitle/srt_correct/ollama_llm.py
+
+# 分 chunks（同原有邏輯，每 chunk ~5000 chars）
+# 對每個 chunk：
+for chunk in /tmp/podscribe-work/chunk_*.json; do
+    N=$(echo "$chunk" | grep -oP 'chunk_\K\d+')
+
+    # 組裝 system prompt
+    cat > /tmp/podscribe-work/correct_sys.txt << 'PROMPT'
+你是中文播客逐字稿校正專家。校正以下 ASR 輸出。
+
+校正規則：
+1. 標點符號 — 補齊句號、逗號、問號
+2. 錯字/專有名詞 — 修正 ASR 誤辨
+3. 斷句 — 確保句子正確分隔
+4. 分段 — 段落內按主題插入換行
+
+讀取 JSON array，校正每個 segment 的 text，保留 start/end/speaker 不變。
+輸出校正後的 JSON array。
+PROMPT
+
+    python3 "$OLLAMA_LLM" \
+        --system /tmp/podscribe-work/correct_sys.txt \
+        --user "$chunk" \
+        --output "/tmp/podscribe-work/chunk_${N}_corrected.json" \
+        --max-tokens 8192
+done
+```
+
 ---
 
 ## Stage 6a: LLM 結構化
@@ -251,6 +294,47 @@ python3 ~/.claude/skills/podcast-digest/scripts/align.py \
 
 **語言規則**：中文播客 → 繁體中文產出。英文播客 → 全部繁體中文產出，關鍵字保留英文原文加中文說明，高光引用附英文原句。
 
+#### Stage 6a 替代路徑：本地 LLM（--local 模式）
+
+四項結構化輸出改為序列執行（Ollama 單 GPU）。
+
+```bash
+OLLAMA_LLM=/Users/fredchu/Documents/For_Claude/scripts/subtitle/srt_correct/ollama_llm.py
+TRANSCRIPT=/tmp/podscribe-work/corrected-all.json
+
+# 1. Summary
+cat > /tmp/podscribe-work/summary_sys.txt << 'PROMPT'
+你是 podcast 摘要助手。根據逐字稿產出分章節摘要。
+6-10 章，每章 3-5 句，[MM:SS] 時間戳。格式用 markdown，繁體中文。直接輸出。
+PROMPT
+python3 "$OLLAMA_LLM" --system /tmp/podscribe-work/summary_sys.txt \
+    --user "$TRANSCRIPT" --output /tmp/podscribe-work/summary.md --max-tokens 4096
+
+# 2. Highlights
+cat > /tmp/podscribe-work/highlights_sys.txt << 'PROMPT'
+你是 podcast 高光片段提取助手。從逐字稿選出 8-10 個精彩引言或觀點。
+每個附時間戳、原文引用、一句話說明為什麼值得注意。markdown 格式，繁體中文。
+PROMPT
+python3 "$OLLAMA_LLM" --system /tmp/podscribe-work/highlights_sys.txt \
+    --user "$TRANSCRIPT" --output /tmp/podscribe-work/highlights.md --max-tokens 4096
+
+# 3. Keywords
+cat > /tmp/podscribe-work/keywords_sys.txt << 'PROMPT'
+從逐字稿提取關鍵字，分三類：人名、公司/產品、概念/術語，各 5-10 個。markdown 格式，繁體中文。
+PROMPT
+python3 "$OLLAMA_LLM" --system /tmp/podscribe-work/keywords_sys.txt \
+    --user "$TRANSCRIPT" --output /tmp/podscribe-work/keywords.md --max-tokens 2048
+
+# 4. Q&A
+cat > /tmp/podscribe-work/qa_sys.txt << 'PROMPT'
+根據逐字稿產出 6-8 個問答題，附時間戳參考。markdown 格式，繁體中文。
+PROMPT
+python3 "$OLLAMA_LLM" --system /tmp/podscribe-work/qa_sys.txt \
+    --user "$TRANSCRIPT" --output /tmp/podscribe-work/qa.md --max-tokens 4096
+```
+
+預計耗時：4 項 × ~60s = ~4 分鐘（vs Sonnet 平行 ~30 秒）。
+
 ## Stage 6b: 中文翻譯（英文播客必跑）
 
 ### 🧠 分 chunks 平行翻譯
@@ -258,6 +342,26 @@ python3 ~/.claude/skills/podcast-digest/scripts/align.py \
 英文播客限定。分 chunks 平行發 sonnet subagent，每 segment 加 `text_zh` 欄位。
 
 翻譯規則：繁體中文（台灣用語）、英文專有名詞保留原文、技術術語首次出現加中文說明。
+
+#### Stage 6b 替代路徑：本地 LLM（--local 模式）
+
+```bash
+# 英文播客限定。逐 chunk 翻譯。
+cat > /tmp/podscribe-work/translate_sys.txt << 'PROMPT'
+你是翻譯專家。將以下英文播客逐字稿翻譯成繁體中文（台灣用語）。
+英文專有名詞保留原文，技術術語首次出現加中文說明。
+對每個 segment 加 text_zh 欄位。輸出 JSON array。
+PROMPT
+
+for chunk in /tmp/podscribe-work/chunk_*.json; do
+    N=$(echo "$chunk" | grep -oP 'chunk_\K\d+')
+    python3 "$OLLAMA_LLM" \
+        --system /tmp/podscribe-work/translate_sys.txt \
+        --user "$chunk" \
+        --output "/tmp/podscribe-work/chunk_${N}_translated.json" \
+        --max-tokens 8192
+done
+```
 
 ---
 

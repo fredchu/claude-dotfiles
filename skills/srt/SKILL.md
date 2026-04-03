@@ -65,6 +65,7 @@ ${SUBTITLE_DIR}/
 - **術語表**：預設 `terms_austin_v2.txt`。用戶指定其他講者 → 尋找對應術語表
 - **投影片文字**：用戶提供投影片文字檔（.txt）→ 啟用 Step 0.5 抽取本集術語
 - **特殊要求**：`--learn`（術語學習）、`--bilingual`（雙語輸出）
+- **LLM 模式**：預設 Sonnet subagent（雲端）。用戶提到 `--local` / 「用本地」/ 「離線」→ 用 Ollama gemma4:26b。需要 Ollama 已啟動且 gemma4:26b 已拉取
 
 ### 工作目錄設定（每部影片必做）
 
@@ -426,6 +427,42 @@ VibeVoice 參考文字會寫在每段的 _vv_ref_<N>.txt 檔案中。
 
    **驗證**：subagent 完成後，主 agent 檢查 `_seg_<N>_corrected.srt` 檔案是否存在且包含 SRT 時間軸格式。如果沒有，重試。
 
+#### Step 2b 替代路徑：本地 LLM（--local 模式）
+
+用戶指定 `--local` 時，用 `ollama_llm.py` 取代 Sonnet subagent。逐段序列執行（Ollama 單 GPU 不支援平行）。
+
+```bash
+OLLAMA_LLM="${CORRECT_DIR}/ollama_llm.py"
+
+for seg_file in "${WORK_DIR}"/_seg_*.srt; do
+    N=$(echo "$seg_file" | grep -oP '_seg_\K\d+')
+
+    # 組裝 user input：上文參考 + VV 參考 + SRT 段落
+    USER_INPUT=""
+    if [ -f "${WORK_DIR}/_ctx_${N}.txt" ]; then
+        USER_INPUT="【上文參考】\n$(cat "${WORK_DIR}/_ctx_${N}.txt")\n\n"
+    fi
+    if [ -f "${WORK_DIR}/_vv_ref_${N}.txt" ] && ! grep -q "NO_VV_REFERENCE" "${WORK_DIR}/_vv_ref_${N}.txt"; then
+        USER_INPUT="${USER_INPUT}【VibeVoice 參考】\n$(cat "${WORK_DIR}/_vv_ref_${N}.txt")\n\n"
+    fi
+    USER_INPUT="${USER_INPUT}$(cat "$seg_file")"
+    echo -e "$USER_INPUT" > "${WORK_DIR}/_user_${N}.txt"
+
+    python3 "$OLLAMA_LLM" \
+        --system "${WORK_DIR}/_system_prompt.txt" \
+        --user "${WORK_DIR}/_user_${N}.txt" \
+        --output "${WORK_DIR}/_seg_${N}_corrected.srt" \
+        --max-tokens 8192
+
+    echo "Segment $N corrected"
+done
+```
+
+**注意事項**：
+- 本地模式不做 SRT 拆句（26B 測試顯示不具備此能力），依賴 Step 2c 的 `srt_postprocess.py` 自動拆句
+- 速度：每 300 blocks 約 30-60 秒（vs Sonnet 平行 ~10 秒），總時間較長但免費
+- 如果 Ollama 回傳 error，印 WARNING 並 fallback 到 Sonnet subagent（該段）
+
 3. **合併**：用 Python 腳本合併所有段的校正結果（不要讀入主 context）：
 
    ```python
@@ -564,6 +601,19 @@ VibeVoice 參考文字會寫在每段的 _vv_ref_<N>.txt 檔案中。
 
    完成後回報修改了多少條。
    ```
+
+#### Step 2c 替代路徑：本地 LLM（--local 模式）
+
+```bash
+for review_file in "${WORK_DIR}"/_review_seg_*.srt; do
+    N=$(echo "$review_file" | grep -oP '_review_seg_\K\d+')
+    python3 "$OLLAMA_LLM" \
+        --system "${WORK_DIR}/_review_prompt.txt" \
+        --user "$review_file" \
+        --output "${WORK_DIR}/_review_seg_${N}_fixes.txt" \
+        --max-tokens 4096
+done
+```
 
 3. **合併複查結果 + 後處理**：
 
