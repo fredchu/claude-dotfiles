@@ -171,9 +171,9 @@ curl -sI "$COVER_URL" | head -1 | grep -q "200" || COVER_URL=""
 
 ---
 
-## Stage 3: ASR + 講者分離（平行）
+## Stage 3: ASR + 講者分離 + NLM 術語抽取（平行）
 
-兩條用 Bash `&` + `wait` 平行跑。
+三條用 Bash `&` + `wait` 平行跑。
 
 ### 🔧 ASR（按語言路由）
 
@@ -192,6 +192,18 @@ cd ~/ghkb/interested/FluidAudio && swift run -c release fluidaudiocli transcribe
 ```bash
 cd ~/ghkb/interested/FluidAudio && swift run -c release fluidaudiocli process "$AUDIO_PATH" --mode offline --output /tmp/podscribe-work/diarize.json
 ```
+
+### 🔧 NLM 術語抽取（與 ASR + 講者分離平行）
+
+```bash
+python3 ~/.claude/skills/podcast-digest/scripts/extract-terms.py \
+  --audio /tmp/podscribe-work/episode.mp3 \
+  --show "{SHOW_NAME}" \
+  --lang "{LANG}" \
+  --output /tmp/podscribe-work/nlm-terms.txt
+```
+
+產出 `/tmp/podscribe-work/nlm-terms.txt`，供 Stage 5 校正和 Stage 6b 翻譯 prompt 注入。如果 NLM 處理失敗或超時，檔案為空，不影響 pipeline 繼續。
 
 ---
 
@@ -242,33 +254,28 @@ fi
 ```bash
 OLLAMA_LLM=/Users/fredchu/Documents/For_Claude/scripts/subtitle/srt_correct/ollama_llm.py
 
-# 分 chunks（每 chunk ~5000 chars）
-# 對每個 chunk：
 for chunk in /tmp/podscribe-work/chunk_*.json; do
     N=$(echo "$chunk" | grep -oP 'chunk_\K\d+')
-
-    # 組裝 system prompt
-    cat > /tmp/podscribe-work/correct_sys.txt << 'PROMPT'
-你是中文播客逐字稿校正專家。校正以下 ASR 輸出。
-
-校正規則：
-1. 標點符號 — 補齊句號、逗號、問號
-2. 錯字/專有名詞 — 修正 ASR 誤辨
-3. 斷句 — 確保句子正確分隔
-4. 分段 — 段落內按主題插入換行
-
-讀取 JSON array，校正每個 segment 的 text，保留 start/end/speaker 不變。
-輸出校正後的 JSON array。
-
-重要：直接輸出純 JSON，不要加 ```json 或任何 markdown 標記。第一個字元必須是 [，最後一個字元必須是 ]。
-PROMPT
-
     python3 "$OLLAMA_LLM" \
         --system /tmp/podscribe-work/correct_sys.txt \
         --user "$chunk" \
         --output "/tmp/podscribe-work/chunk_${N}_corrected.json" \
         --json --max-tokens 8192
 done
+```
+
+**校正 system prompt 組裝規則**（寫入 `/tmp/podscribe-work/correct_sys.txt`）：
+
+1. 基礎指令：「你是播客逐字稿校正專家。校正以下 ASR 輸出。」+ 校正規則（標點、錯字、斷句、分段）
+2. **如果 `/tmp/podscribe-work/nlm-terms.txt` 存在且非空**，在校正規則後加入：
+   ```
+   ## 術語表（必須逐條比對）
+   以下是本集播客出現的專有名詞和術語。校正時必須優先匹配這些術語：
+   
+   {nlm-terms.txt 的內容}
+   ```
+3. 尾部指令：「讀取 JSON array，校正每個 segment 的 text，保留 start/end/speaker 不變。輸出校正後的 JSON array。」
+4. JSON 安全指令：「重要：直接輸出純 JSON，不要加 ``` 或任何 markdown 標記。第一個字元必須是 [，最後一個字元必須是 ]。」
 ```
 
 校正完合併為 `/tmp/podscribe-work/corrected-all.json`。
@@ -362,15 +369,6 @@ python3 "$OLLAMA_LLM" --system /tmp/podscribe-work/qa_sys.txt \
 翻譯規則：繁體中文（台灣用語）、英文專有名詞保留原文、技術術語首次出現加中文說明。
 
 ```bash
-# 英文播客限定。逐 chunk 翻譯。
-cat > /tmp/podscribe-work/translate_sys.txt << 'PROMPT'
-你是翻譯專家。將以下英文播客逐字稿翻譯成繁體中文（台灣用語）。
-英文專有名詞保留原文，技術術語首次出現加中文說明。
-對每個 segment 加 text_zh 欄位。輸出 JSON array。
-
-重要：直接輸出純 JSON，不要加 ```json 或任何 markdown 標記。第一個字元必須是 [，最後一個字元必須是 ]。
-PROMPT
-
 for chunk in /tmp/podscribe-work/chunk_*.json; do
     N=$(echo "$chunk" | grep -oP 'chunk_\K\d+')
     python3 "$OLLAMA_LLM" \
@@ -380,6 +378,18 @@ for chunk in /tmp/podscribe-work/chunk_*.json; do
         --json --max-tokens 8192
 done
 ```
+
+**翻譯 system prompt 組裝規則**（寫入 `/tmp/podscribe-work/translate_sys.txt`）：
+
+1. 基礎指令：「你是翻譯專家。將以下英文播客逐字稿翻譯成繁體中文（台灣用語）。英文專有名詞保留原文，技術術語首次出現加中文說明。對每個 segment 加 text_zh 欄位。輸出 JSON array。」
+2. **如果 `/tmp/podscribe-work/nlm-terms.txt` 存在且非空**，在基礎指令後加入：
+   ```
+   ## 術語對照表
+   翻譯時請遵循以下術語的統一譯法：
+   
+   {nlm-terms.txt 的內容}
+   ```
+3. JSON 安全指令：「重要：直接輸出純 JSON，不要加 ``` 或任何 markdown 標記。第一個字元必須是 [，最後一個字元必須是 ]。」
 
 #### Stage 6b 替代路徑：Sonnet（--cloud 模式）
 
@@ -456,6 +466,7 @@ slug 化：日期前綴 `YYYY-MM-DD_`、英文全小寫、空格/破折號 → `
 | `scripts/align.py` | 對齊合併 + auto speaker detection | 完整 | 否 |
 | `scripts/md2html.py` | Markdown → 語義化 HTML | 兩者 | 否 |
 | `scripts/assemble.py` | 組裝最終 markdown | 完整 | 否 |
+| `scripts/extract-terms.py` | NLM 術語抽取（upload + ask + clean） | 完整 | 否 |
 | `scripts/push_readwise.py` | 推送 Readwise Reader | 兩者 | 否 |
 
 **「可現場重寫？否」= 禁止在 session 中現場寫替代函數。有 bug 就修腳本本身。**
