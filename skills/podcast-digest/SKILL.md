@@ -251,22 +251,24 @@ fi
 
 讀取 aligned.json，按 ~5000 chars 分 chunks，逐 chunk 校正。**Gemma 只處理純文字，JSON 結構由腳本維護。**
 
+**重要**：迴圈只處理原始 chunk（`chunk_0.json` ~ `chunk_N.json`），不要用 glob `chunk_*.json`（會匹配到 `_corrected`、`_translated` 等中間產物）。用 `for i in $(seq 0 ...)` 或逐一列舉。
+
 ```bash
 OLLAMA_LLM=/Users/fredchu/Documents/For_Claude/scripts/subtitle/srt_correct/ollama_llm.py
 CHUNK_TEXT=~/.claude/skills/podcast-digest/scripts/chunk_text.py
 
-for chunk in /tmp/podscribe-work/chunk_*.json; do
-    N=$(echo "$chunk" | grep -oP 'chunk_\K\d+')
+for i in $(seq 0 $((NUM_CHUNKS - 1))); do
+    chunk="/tmp/podscribe-work/chunk_${i}.json"
     # 1. 提取純文字
-    python3 "$CHUNK_TEXT" extract --input "$chunk" --output "/tmp/podscribe-work/chunk_${N}.txt"
+    python3 "$CHUNK_TEXT" extract --input "$chunk" --output "/tmp/podscribe-work/chunk_${i}.txt"
     # 2. Gemma 校正純文字
     python3 "$OLLAMA_LLM" \
         --system /tmp/podscribe-work/correct_sys.txt \
-        --user "/tmp/podscribe-work/chunk_${N}.txt" \
-        --output "/tmp/podscribe-work/chunk_${N}_corrected.txt" \
+        --user "/tmp/podscribe-work/chunk_${i}.txt" \
+        --output "/tmp/podscribe-work/chunk_${i}_corrected.txt" \
         --max-tokens 8192
-    # 3. 合併回 JSON
-    python3 "$CHUNK_TEXT" merge --input "$chunk" --text "/tmp/podscribe-work/chunk_${N}_corrected.txt" --output "/tmp/podscribe-work/chunk_${N}_corrected.json"
+    # 3. 合併回 JSON（--strict 確保 segment 數一致）
+    python3 "$CHUNK_TEXT" merge --strict --input "$chunk" --text "/tmp/podscribe-work/chunk_${i}_corrected.txt" --output "/tmp/podscribe-work/chunk_${i}_corrected.json"
 done
 ```
 
@@ -371,18 +373,18 @@ python3 "$OLLAMA_LLM" --system /tmp/podscribe-work/qa_sys.txt \
 ```bash
 CHUNK_TEXT=~/.claude/skills/podcast-digest/scripts/chunk_text.py
 
-for chunk in /tmp/podscribe-work/chunk_*_corrected.json; do
-    N=$(echo "$chunk" | sed 's/.*chunk_//;s/_corrected.json//')
+for i in $(seq 0 $((NUM_CHUNKS - 1))); do
+    corrected="/tmp/podscribe-work/chunk_${i}_corrected.json"
     # 1. 提取純文字
-    python3 "$CHUNK_TEXT" extract --input "$chunk" --output "/tmp/podscribe-work/chunk_${N}_for_translate.txt"
+    python3 "$CHUNK_TEXT" extract --input "$corrected" --output "/tmp/podscribe-work/chunk_${i}_for_translate.txt"
     # 2. Gemma 翻譯純文字
     python3 "$OLLAMA_LLM" \
         --system /tmp/podscribe-work/translate_sys.txt \
-        --user "/tmp/podscribe-work/chunk_${N}_for_translate.txt" \
-        --output "/tmp/podscribe-work/chunk_${N}_translated.txt" \
+        --user "/tmp/podscribe-work/chunk_${i}_for_translate.txt" \
+        --output "/tmp/podscribe-work/chunk_${i}_translated.txt" \
         --max-tokens 8192
-    # 3. 合併翻譯結果為 text_zh
-    python3 "$CHUNK_TEXT" merge-translation --input "$chunk" --text "/tmp/podscribe-work/chunk_${N}_translated.txt" --output "/tmp/podscribe-work/chunk_${N}_translated.json"
+    # 3. 合併翻譯結果為 text_zh（--strict 確保 segment 數一致）
+    python3 "$CHUNK_TEXT" merge-translation --strict --input "$corrected" --text "/tmp/podscribe-work/chunk_${i}_translated.txt" --output "/tmp/podscribe-work/chunk_${i}_translated.json"
 done
 ```
 

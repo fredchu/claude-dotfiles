@@ -46,7 +46,7 @@ def _parse_numbered(text):
     return result
 
 
-def merge(input_path, text_path, output_path):
+def merge(input_path, text_path, output_path, strict=False):
     """Replace text fields in JSON with corrected text."""
     data = json.load(open(input_path))
     segments = data if isinstance(data, list) else data.get("segments", [])
@@ -54,8 +54,11 @@ def merge(input_path, text_path, output_path):
     corrected = _parse_numbered(Path(text_path).read_text())
 
     if len(corrected) != len(segments):
-        print(f"WARNING: segment count mismatch: {len(segments)} segments vs {len(corrected)} lines",
-              file=sys.stderr)
+        msg = f"segment count mismatch: {len(segments)} segments vs {len(corrected)} lines"
+        if strict:
+            print(f"ERROR: {msg}", file=sys.stderr)
+            sys.exit(1)
+        print(f"WARNING: {msg}", file=sys.stderr)
 
     for i, seg in enumerate(segments):
         if i < len(corrected):
@@ -67,7 +70,7 @@ def merge(input_path, text_path, output_path):
     print(f"Merged {min(len(corrected), len(segments))} segments", file=sys.stderr)
 
 
-def merge_translation(input_path, text_path, output_path):
+def merge_translation(input_path, text_path, output_path, strict=False):
     """Add text_zh field to JSON from translated text."""
     data = json.load(open(input_path))
     segments = data if isinstance(data, list) else data.get("segments", [])
@@ -75,8 +78,11 @@ def merge_translation(input_path, text_path, output_path):
     translated = _parse_numbered(Path(text_path).read_text())
 
     if len(translated) != len(segments):
-        print(f"WARNING: segment count mismatch: {len(segments)} segments vs {len(translated)} lines",
-              file=sys.stderr)
+        msg = f"segment count mismatch: {len(segments)} segments vs {len(translated)} lines"
+        if strict:
+            print(f"ERROR: {msg}", file=sys.stderr)
+            sys.exit(1)
+        print(f"WARNING: {msg}", file=sys.stderr)
 
     for i, seg in enumerate(segments):
         if i < len(translated):
@@ -100,20 +106,22 @@ def main():
     p_merge.add_argument("--input", required=True, help="Original JSON")
     p_merge.add_argument("--text", required=True, help="Corrected text file")
     p_merge.add_argument("--output", required=True)
+    p_merge.add_argument("--strict", action="store_true", help="Exit with error if segment count mismatches")
 
     p_trans = sub.add_parser("merge-translation", help="Add text_zh from translated text")
     p_trans.add_argument("--input", required=True, help="Original JSON")
     p_trans.add_argument("--text", required=True, help="Translated text file")
     p_trans.add_argument("--output", required=True)
+    p_trans.add_argument("--strict", action="store_true", help="Exit with error if segment count mismatches")
 
     args = parser.parse_args()
 
     if args.command == "extract":
         extract(args.input, args.output)
     elif args.command == "merge":
-        merge(args.input, args.text, args.output)
+        merge(args.input, args.text, args.output, strict=args.strict)
     elif args.command == "merge-translation":
-        merge_translation(args.input, args.text, args.output)
+        merge_translation(args.input, args.text, args.output, strict=args.strict)
 
 
 if __name__ == "__main__":
