@@ -390,17 +390,17 @@ done
 cat /tmp/podscribe-work/chunk_*_map.md > /tmp/podscribe-work/all_maps.md
 ```
 
-**Reduce 階段**：把合併的局部摘要餵給 Gemma，產出最終 4 項。
+**Reduce 階段（自適應）**：合併後如果仍 > 15K chars，分組再 reduce 一輪，重複直到 < 15K。
 
-```bash
-# all_maps.md 通常 ~5K-10K chars，在 Gemma context 範圍內
-# 用現有的 4 個 prompt 模板，但 --user 改為 all_maps.md
-python3 "$OLLAMA_LLM" --system /tmp/podscribe-work/summary_sys.txt \
-    --user /tmp/podscribe-work/all_maps.md --output /tmp/podscribe-work/summary.md --max-tokens 4096
-# Highlights, Keywords, Q&A 同上
+```
+while all_maps.md > 15K chars:
+    分成 ~6 組，每組用 Gemma 彙整為 ~1K 字摘要
+    合併所有組的彙整 → 覆寫 all_maps.md
 ```
 
-**注意**：Reduce 的 prompt 要調整為「根據以下各段摘要」而非「根據逐字稿」，避免 Gemma 以為輸入是原始逐字稿。
+每輪 reduce 的 system prompt：「你是播客摘要助手。以下是一段播客的多個局部摘要。請彙整為連貫的摘要，3-5 個重點段落，保留時間戳和所有人名術語。」
+
+**最終輸出**：all_maps.md 壓到 < 15K 後，用 4 個 prompt 模板（summary/highlights/keywords/Q&A）產出最終結果。Reduce 的 prompt 要用「根據以下各段摘要」而非「根據逐字稿」。
 
 **判斷閾值**：用 `wc -c corrected-all.json` 檢查。≤ 15000 走短文本，> 15000 走 map-reduce。
 

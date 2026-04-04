@@ -102,8 +102,19 @@ def main():
 
     print(f"Notebook: {notebook_id}", file=sys.stderr)
 
+    # If audio > 60 min, trim to first 60 min (NLM chokes on long files)
+    audio_path = args.audio
+    probe = run_cmd(["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+                     "-of", "csv=p=0", audio_path], timeout=30)
+    if probe and float(probe.stdout.strip()) > 3600:
+        trimmed = audio_path.rsplit(".", 1)[0] + "-60min.mp3"
+        trim_result = run_cmd(["ffmpeg", "-i", audio_path, "-t", "3600", "-c", "copy", trimmed, "-y"], timeout=120)
+        if trim_result:
+            audio_path = trimmed
+            print(f"Trimmed to 60 min: {trimmed}", file=sys.stderr)
+
     # Upload audio source
-    result = run_cmd([NLM_BIN, "source", "add", str(args.audio),
+    result = run_cmd([NLM_BIN, "source", "add", str(audio_path),
                       "--json", "--notebook", notebook_id])
     if not result:
         print("ERROR: Failed to add source", file=sys.stderr)
