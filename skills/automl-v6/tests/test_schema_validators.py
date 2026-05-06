@@ -46,3 +46,39 @@ def test_invalid_lifecycle_state_fails():
     }
     with pytest.raises(SchemaValidationError):
         validate_state_json(invalid)
+
+
+def test_state_with_alignment_metadata_validates():
+    """Phase 4: alignment_metadata is optional, accepts {questions_asked, depth}."""
+    state = {
+        "schema_version": "v6.0",
+        "run_id": "20260506-200000-test",
+        "lifecycle_state": "achieved",
+        "lifecycle_transitions": [],
+        "active_session": None,
+        "criteria_progress": {},
+        "tokens": {"estimated": 1000, "actual": 800, "by_round": []},
+        "iterations": 0,
+        "expected_wake_at": None,
+        "audit_failure_log": [],
+        "alignment_metadata": {"questions_asked": 3, "depth": "normal"},
+    }
+    assert validate_state_json(state) is True
+
+
+def test_state_alignment_metadata_null_validates():
+    """alignment_metadata may be null when alignment hasn't completed."""
+    state = {
+        "schema_version": "v6.0",
+        "run_id": "20260506-200000-test",
+        "lifecycle_state": "aligning",
+        "lifecycle_transitions": [],
+        "active_session": None,
+        "criteria_progress": {},
+        "tokens": {"estimated": 0, "actual": 0, "by_round": []},
+        "iterations": 0,
+        "expected_wake_at": None,
+        "audit_failure_log": [],
+        "alignment_metadata": None,
+    }
+    assert validate_state_json(state) is True

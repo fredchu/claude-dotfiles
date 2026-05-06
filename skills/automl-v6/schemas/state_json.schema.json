@@ -78,6 +78,19 @@
     },
     "iterations": {"type": "integer", "minimum": 0},
     "expected_wake_at": {"type": ["string", "null"]},
-    "audit_failure_log": {"type": "array"}
+    "audit_failure_log": {"type": "array"},
+    "alignment_metadata": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["questions_asked", "depth"],
+          "properties": {
+            "questions_asked": {"type": "integer", "minimum": 0},
+            "depth": {"type": "string", "enum": ["shallow", "normal", "deep"]}
+          }
+        }
+      ]
+    }
   }
 }
