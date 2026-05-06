@@ -1,6 +1,7 @@
 """RED_TEAM subagent dispatch + main-session repair loop."""
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 from schema_validators import validate_red_team_output, SchemaValidationError
@@ -42,3 +43,19 @@ def parse_red_team_output(raw: str) -> dict:
         raise RedTeamError(str(e))
 
     return data
+
+
+def record_red_team_invocation(state: dict, round_id: int, verdict: str, rationale: str = "") -> None:
+    """Append a RED_TEAM invocation record to state.
+
+    Phase 5: replaces the Phase 4 audit-log proxy. Called by main session
+    immediately after parse_red_team_output succeeds.
+    """
+    if verdict not in {"approved", "blocked", "advisory"}:
+        raise ValueError(f"verdict must be approved|blocked|advisory, got {verdict!r}")
+    state.setdefault("red_team_invocations", []).append({
+        "round_id": round_id,
+        "ts": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
+        "verdict": verdict,
+        "rationale": rationale,
+    })

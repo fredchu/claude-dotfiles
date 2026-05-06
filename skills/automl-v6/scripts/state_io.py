@@ -45,6 +45,7 @@ def init_state(run_dir: Path, run_id: str, session_id: str, pid: int) -> None:
         "iterations": 0,
         "expected_wake_at": None,
         "audit_failure_log": [],
+        "red_team_invocations": [],
     }
     write_state(run_dir, state)
 

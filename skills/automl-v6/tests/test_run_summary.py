@@ -104,6 +104,13 @@ def test_write_run_summary_creates_file(tmp_path, calibrator_fixture, state_fixt
     assert "calibrator_telemetry" in out.read_text()
 
 
+def test_telemetry_red_team_invoked_via_invocations_field(calibrator_fixture, state_fixture):
+    """Phase 5: red_team_invocations entry sets red_team_skipped=False."""
+    state_fixture["red_team_invocations"] = [{"round_id": 1, "ts": "2026-05-06T14:30:00+08:00", "verdict": "approved"}]
+    t = build_calibrator_telemetry(calibrator_fixture, state_fixture)
+    assert t["red_team_skipped"] is False
+
+
 def test_write_run_summary_idempotent_overwrites(tmp_path, calibrator_fixture, state_fixture):
     """Re-writing replaces in place (single source of truth at terminal)."""
     run_dir = tmp_path / "20260506-200000-test"

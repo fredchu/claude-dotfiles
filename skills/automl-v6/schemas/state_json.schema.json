@@ -79,6 +79,19 @@
     "iterations": {"type": "integer", "minimum": 0},
     "expected_wake_at": {"type": ["string", "null"]},
     "audit_failure_log": {"type": "array"},
+    "red_team_invocations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["round_id", "ts", "verdict"],
+        "properties": {
+          "round_id": {"type": "integer", "minimum": 0},
+          "ts": {"type": "string", "format": "date-time"},
+          "verdict": {"type": "string", "enum": ["approved", "blocked", "advisory"]},
+          "rationale": {"type": "string"}
+        }
+      }
+    },
     "alignment_metadata": {
       "oneOf": [
         {"type": "null"},

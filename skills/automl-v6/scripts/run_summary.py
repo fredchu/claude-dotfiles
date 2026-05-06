@@ -27,8 +27,14 @@ def build_calibrator_telemetry(calibrator: dict, state: dict) -> dict:
     actual_depth = alignment_meta.get("depth")
 
     estimated_should_red_team = calibrator.get("verification", {}).get("should_red_team", False)
-    audit_log = state.get("audit_failure_log", [])
-    red_team_invoked = any(entry.get("red_team_invoked") for entry in audit_log)
+    # Phase 5: prefer red_team_invocations (authoritative); fall back to
+    # audit_failure_log entry proxy for backward compat with pre-Phase-5 runs.
+    invocations = state.get("red_team_invocations")
+    if invocations:
+        red_team_invoked = True
+    else:
+        audit_log = state.get("audit_failure_log", [])
+        red_team_invoked = any(entry.get("red_team_invoked") for entry in audit_log)
     red_team_skipped = not red_team_invoked
 
     return {
