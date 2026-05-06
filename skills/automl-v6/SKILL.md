@@ -1,8 +1,8 @@
 ---
 name: automl-v6
-version: 6.0.0-alpha.3
+version: 6.0.0-alpha.4
 description: |
-  Autonomous Evaluation Loop v6 (Phase 1 + 2 + 3 dev) — calibrated alignment + round loop + audit discipline + always-on gates + RED_TEAM opt-in + multi-session lock + cross-session quota coordination + worktree advisory + orphan recovery.
+  Autonomous Evaluation Loop v6 (Phase 1 + 2 + 3 + 4 dev) — calibrated alignment + round loop + audit discipline + always-on gates + RED_TEAM opt-in + multi-session lock + cross-session quota coordination + worktree advisory + orphan recovery + calibrator self-improvement telemetry.
   This is the development skill. Will be renamed to `automl` at v6.0 ship (Phase 5).
   Triggered: /automl-v6, "let it run to completion" (during dev only).
 allowed-tools:

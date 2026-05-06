@@ -1,5 +1,53 @@
 # Changelog
 
+## v6.0.0-alpha.4 — 2026-05-06 (Phase 4 dev complete)
+
+Phase 4 calibrator self-improvement loop landed. Per-run telemetry capture
+into a frozen `run_summary.md` at terminal lifecycle, plus a launchd-driven
+review job that aggregates drift across runs and alerts on Discord when
+the calibrator is consistently miscalibrated.
+
+### Added
+- `scripts/run_summary.py` — `build_calibrator_telemetry`, `build_run_summary_md`,
+  `write_run_summary`. Derives the 8-field telemetry block from
+  `calibrator.json` + `state.json`.
+- `scripts/orchestrator.py::write_run_summary_if_terminal` — idempotent
+  hook fired at terminal lifecycle transitions (achieved / unmet /
+  budget-limited / aborted).
+- `schemas/state_json.schema.json` — additive optional `alignment_metadata`
+  field (`{questions_asked, depth} | null`); does not break existing state.
+- `scripts/alignment_dialogue.py::record_alignment_completion` — sets
+  `state.alignment_metadata` when goal.md is finalized.
+- External (For_Claude repo) `scripts/calibrator_review/calibrator_review.py`
+  — launchd-driven aggregator; cohort filter by `--lookback-days`, median
+  |diff_pct| computation, Discord push when median > threshold AND cohort
+  >= min_cohort.
+- External `scripts/calibrator_review/com.user.automl-calibrator-review.plist`
+  — weekly Sunday 09:00 schedule (manual flip to monthly after 3 months
+  per spec §11.4).
+
+### Test coverage
+- 165 tests passing total in /automl-v6 skill (Phase 1: 60 + Phase 2: 48 +
+  Phase 3: 41 + Phase 4: ~16) plus 8 calibrator_review tests in For_Claude.
+- E2E: terminal happy path -> run_summary.md telemetry round-trip.
+
+### Phase 4 deferred to later phases
+- Calibrator prompt retune workflow (human-driven, half-yearly per spec)
+- `/automl history` UX surface — Phase 5
+- Cross-machine review (Mini CC also writes run_summary.md; Phase 4 reviews
+  Pro CC only — sync mechanism later)
+- Automatic `red_team_was_needed_in_hindsight` inference — main session
+  retrospective fills it manually for now
+
+### Plan deviations from `2026-05-06-automl-v6-phase4-calibrator-self-improvement.md`
+- Step 3a (red_team_invoked stamping in red_team_dispatch.py) was DEFERRED.
+  Investigation showed red_team_dispatch.py only does prompt building +
+  output parsing; it doesn't write to audit_failure_log. A proper fix
+  needs a new state field (`red_team_invocations`) plus orchestrator
+  wiring — bigger than the 3-line change the plan anticipated. The
+  existing `red_team_skipped` derivation in run_summary.py is a known
+  proxy and will be tightened in a follow-up.
+
 ## v6.0.0-alpha.3 — 2026-05-06 (Phase 3 dev complete)
 
 Phase 3 multi-session safety landed. Heartbeat-driven active_session lock,
