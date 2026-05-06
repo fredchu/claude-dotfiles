@@ -46,3 +46,36 @@ def test_registry_update_writes_own_usage(tmp_registry):
     registry.update_own_usage(run_id="r1", session_id="sess-1", used_pct=42)
     data = json.loads((tmp_registry / "claude_max.json").read_text())
     assert any(r["run_id"] == "r1" and r["used_pct"] == 42 for r in data["by_run"])
+
+
+def test_check_quota_uses_effective_threshold(tmp_path):
+    """When other sessions use 30%, effective threshold for self is 45 (75-30)."""
+    registry = tmp_path / "quota_registry"
+    registry.mkdir()
+    (registry / "claude_max.json").write_text(json.dumps({
+        "quota_window": "", "total_used_pct": 30,
+        "by_run": [{"run_id": "other", "session_id": "s2", "used_pct": 30}],
+        "last_updated": "",
+    }))
+    # Self at 50% — would PASS at base 75, but FAILS at effective 45.
+    result = check_quota(
+        registry_dir=registry, cli="claude_max", run_id="self", own_used_pct=50,
+    )
+    assert result.tripped is True
+
+
+def test_check_quota_threshold_override_ignores_coordinator(tmp_path):
+    """Explicit threshold parameter bypasses cross-session aggregation (legacy path)."""
+    registry = tmp_path / "quota_registry"
+    registry.mkdir()
+    (registry / "claude_max.json").write_text(json.dumps({
+        "quota_window": "", "total_used_pct": 90,
+        "by_run": [{"run_id": "other", "session_id": "s2", "used_pct": 90}],
+        "last_updated": "",
+    }))
+    # With override, coordinator is ignored and 50 < 75 -> no trip.
+    result = check_quota(
+        registry_dir=registry, cli="claude_max", run_id="self", own_used_pct=50,
+        threshold=75,
+    )
+    assert result.tripped is False

@@ -37,3 +37,31 @@ def test_parse_valid_pursuing_output():
 def test_parse_invalid_json_raises():
     with pytest.raises(RoundDispatchError):
         parse_round_output("not valid json {{")
+
+
+def test_record_round_boundary_updates_heartbeat():
+    """At the round boundary heartbeat moves forward so other sessions don't
+    misjudge this run as stale."""
+    from datetime import datetime, timedelta, timezone
+
+    from round_dispatch import record_round_boundary
+
+    old = (datetime.now(timezone.utc) - timedelta(minutes=15)).astimezone().isoformat(timespec="seconds")
+    state = {
+        "active_session": {
+            "session_id": "s1", "pid": 1,
+            "started_at": old, "last_heartbeat": old,
+        },
+    }
+    record_round_boundary(state)
+    new_hb = datetime.fromisoformat(state["active_session"]["last_heartbeat"])
+    delta = (datetime.now(timezone.utc).astimezone() - new_hb).total_seconds()
+    assert delta < 5
+
+
+def test_record_round_boundary_noop_when_no_active_session():
+    from round_dispatch import record_round_boundary
+
+    state = {"active_session": None}
+    record_round_boundary(state)
+    assert state["active_session"] is None

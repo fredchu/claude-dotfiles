@@ -1,5 +1,12 @@
-"""Quota gate — per-CLI registry (Phase 2: single-session only)."""
+"""Quota gate — per-CLI registry.
+
+Phase 2: single-session.
+Phase 3: fcntl lock around update_own_usage so concurrent sessions don't lose
+data. Cross-session aggregation lives in `quota_coordinator`.
+"""
+import fcntl
 import json
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,18 +29,34 @@ def _now_iso() -> str:
 
 def check_quota(
     registry_dir: Path, cli: str, run_id: str, own_used_pct: float,
-    threshold: int = DEFAULT_THRESHOLD,
+    threshold: int | None = None,
 ) -> QuotaGateResult:
-    """Trip if own_used_pct >= threshold for known CLI."""
+    """Trip if own_used_pct >= effective threshold for known CLI.
+
+    If `threshold` is provided, it overrides cross-session aggregation
+    (legacy single-session behavior). Otherwise the gate consults
+    `quota_coordinator.aggregate_other_sessions_used_pct` and uses the
+    effective threshold (`75 - others_used`).
+    """
     if cli not in SUPPORTED_CLIS:
         return QuotaGateResult(tripped=False)
 
-    if own_used_pct >= threshold:
+    if threshold is None:
+        from quota_coordinator import (
+            aggregate_other_sessions_used_pct,
+            effective_threshold,
+        )
+        others = aggregate_other_sessions_used_pct(registry_dir, cli, run_id)
+        active_threshold = effective_threshold(others, base=DEFAULT_THRESHOLD)
+    else:
+        active_threshold = threshold
+
+    if own_used_pct >= active_threshold:
         return QuotaGateResult(
             tripped=True,
             target_state="paused",
             pause_reason="quota_wait",
-            reason=f"{cli} quota usage {own_used_pct}% >= {threshold}%",
+            reason=f"{cli} quota usage {own_used_pct}% >= {active_threshold}%",
         )
     return QuotaGateResult(tripped=False)
 
@@ -57,11 +80,29 @@ class QuotaRegistry:
         return json.loads(self.path.read_text())
 
     def update_own_usage(self, run_id: str, session_id: str, used_pct: float) -> None:
-        """Insert or update this run's usage entry; recompute total."""
-        data = self.read()
-        by_run = [r for r in data.get("by_run", []) if r.get("run_id") != run_id]
-        by_run.append({"run_id": run_id, "session_id": session_id, "used_pct": used_pct})
-        data["by_run"] = by_run
-        data["total_used_pct"] = sum(r.get("used_pct", 0) for r in by_run)
-        data["last_updated"] = _now_iso()
-        self.path.write_text(json.dumps(data, indent=2))
+        """Insert or update this run's usage entry; recompute total.
+
+        Holds an exclusive fcntl lock on a sidecar `.lock` file across the
+        read-modify-write so concurrent updaters do not clobber each other.
+        """
+        with _locked_path(self.path):
+            data = self.read()
+            by_run = [r for r in data.get("by_run", []) if r.get("run_id") != run_id]
+            by_run.append({"run_id": run_id, "session_id": session_id, "used_pct": used_pct})
+            data["by_run"] = by_run
+            data["total_used_pct"] = sum(r.get("used_pct", 0) for r in by_run)
+            data["last_updated"] = _now_iso()
+            self.path.write_text(json.dumps(data, indent=2))
+
+
+@contextmanager
+def _locked_path(path: Path):
+    """Hold an exclusive fcntl lock on a sidecar file while updating registry."""
+    lock_path = path.with_suffix(".lock")
+    lock_path.touch(exist_ok=True)
+    with open(lock_path, "r+") as fp:
+        fcntl.flock(fp.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fp.fileno(), fcntl.LOCK_UN)

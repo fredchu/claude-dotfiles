@@ -1,8 +1,9 @@
-"""Build round subagent prompt + parse subagent output."""
+"""Build round subagent prompt + parse subagent output + boundary heartbeat."""
 import json
 import re
 from pathlib import Path
 from schema_validators import validate_round_output, SchemaValidationError
+from session_lock import update_heartbeat
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
@@ -66,3 +67,13 @@ def parse_round_output(raw: str) -> dict:
         raise RoundDispatchError(str(e))
 
     return data
+
+
+def record_round_boundary(state: dict) -> None:
+    """Stamp a heartbeat at the round boundary.
+
+    Phase 3: orchestrator calls this just before persisting the round's state
+    mutation, so the heartbeat reflects the most recent active work and other
+    sessions can correctly judge resume / orphan thresholds.
+    """
+    update_heartbeat(state)

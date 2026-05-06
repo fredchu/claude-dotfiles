@@ -48,3 +48,27 @@ def test_parse_unknown_subcommand_treated_as_freeform():
     cmd = parse_args(["FixSomeBug"])
     assert cmd.command == "invoke"
     assert cmd.freeform == "FixSomeBug"
+
+
+def test_parse_allow_cwd_conflict_flag():
+    parsed = parse_args(["--allow-cwd-conflict", "fix bug"])
+    assert parsed.allow_cwd_conflict is True
+    assert parsed.command == "invoke"
+    assert parsed.freeform == "fix bug"
+
+
+def test_parse_autonomous_flag():
+    parsed = parse_args(["--autonomous", "fix bug"])
+    assert parsed.autonomous is True
+
+
+def test_default_flags_off():
+    parsed = parse_args(["fix bug"])
+    assert parsed.allow_cwd_conflict is False
+    assert parsed.autonomous is False
+
+
+def test_status_with_autonomous_flag():
+    parsed = parse_args(["--autonomous", "status"])
+    assert parsed.command == "status"
+    assert parsed.autonomous is True

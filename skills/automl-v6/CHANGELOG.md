@@ -1,5 +1,64 @@
 # Changelog
 
+## v6.0.0-alpha.3 — 2026-05-06 (Phase 3 dev complete)
+
+Phase 3 multi-session safety landed. Heartbeat-driven active_session lock,
+cross-session quota coordination, worktree advisory with same-cwd refusal,
+and orphan recovery scan are now wired through orchestrator startup.
+
+### Added
+- `scripts/session_lock.py` — `update_heartbeat`, `is_session_alive`,
+  `can_takeover`. Two thresholds: `HEARTBEAT_STALE_RESUME` (10 min) for
+  resume conflicts, `HEARTBEAT_STALE_ORPHAN` (1 hour) for orphan recovery.
+- `scripts/quota_coordinator.py` — `aggregate_other_sessions_used_pct` +
+  `effective_threshold`. Quota gate now consults peers and throttles to
+  `75% - others_usage` so concurrent sessions don't all run hot at the cap.
+- `scripts/worktree_advisory.py` — `is_inside_worktree`,
+  `find_active_runs_in_cwd`, `check_cwd_conflict`, `refuse_message`.
+  Detects same-cwd concurrent runs via `git rev-parse --git-dir` vs
+  `--git-common-dir`; orphans (paused + heartbeat > 1h) are excluded so
+  they don't block legitimate takeover.
+- `scripts/orphan_recovery.py` — `scan_for_orphans`, `classify_takeover_action`.
+  Autonomous mode silently reclaims; interactive mode surfaces orphans for
+  the user.
+- `scripts/orchestrator.py::start_or_resume_run` — startup gate sequence
+  (worktree advisory → orphan scan → classify → silent takeover for
+  autonomous). `takeover_orphan` rewrites `active_session` and moves
+  `paused → pursuing`. `heartbeat_state_path` lets the main session stamp
+  heartbeat outside the round boundary.
+- `scripts/round_dispatch.py::record_round_boundary` — wraps
+  `update_heartbeat`; called from `apply_round_output_to_state` so each
+  round persists fresh liveness.
+- `scripts/cli_parser.py` — `--allow-cwd-conflict` and `--autonomous`
+  flags surface on `ParsedCommand`.
+
+### Modified
+- `gates/quota_gate.py::QuotaRegistry.update_own_usage` now wraps the
+  read-modify-write in an exclusive fcntl lock (sidecar `.lock` file) so
+  concurrent updaters can't clobber each other.
+- `gates/quota_gate.py::check_quota` consults
+  `quota_coordinator.aggregate_other_sessions_used_pct` for the effective
+  threshold; explicit `threshold=` kwarg still bypasses for legacy paths.
+
+### Test coverage
+- 149 tests passing total (Phase 1: 60 + Phase 2: 48 + Phase 3: 41)
+- 7 session_lock + 6 quota_coordinator + 8 worktree_advisory + 6 orphan_recovery + 5 cli_parser additions + 2 round_dispatch boundary + 7 e2e (cross-session takeover, concurrent cwd refused, orphan autonomous takeover)
+
+### Phase 3 deferred to later phases
+- Concrete `pause` / `resume` / `clear` / `history` UX commands — Phase 5
+- `/automl-legacy` parallel migration — Phase 5
+- Calibrator self-improvement telemetry — Phase 4
+- ScheduleWakeup tier 2 launchd workaround — v6.x external opt-in (§9.7)
+- RED_TEAM 2-cycle main-session repair loop — Phase 2 follow-up if needed
+
+### Plan deviations from `2026-05-06-automl-v6-phase3-multisession.md`
+- Boundary heartbeat lives in `apply_round_output_to_state` (orchestrator),
+  not in a new `round_dispatch` callback — matches existing round mutation
+  surface; `record_round_boundary` is the helper.
+- `find_active_runs_in_cwd` filters out orphan runs (paused + heartbeat
+  > 1h) so the cwd advisory doesn't block the orphan-recovery startup
+  path. Plan didn't anticipate this interaction.
+
 ## v6.0.0-alpha.2 — 2026-05-06 (Phase 2 dev complete)
 
 Phase 2 always-on gates + RED_TEAM opt-in landed. FIXED ORDER tick gate orchestrator integrates 6 standalone gates plus RED_TEAM dispatch hook.
