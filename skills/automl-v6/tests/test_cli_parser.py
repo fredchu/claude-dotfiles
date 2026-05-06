@@ -104,3 +104,68 @@ def test_parse_history_command():
     cmd = parse_args(["history"])
     assert cmd.command == "history"
     assert cmd.run_id is None
+
+
+def test_parse_budget_override():
+    cmd = parse_args(["--budget", "120000", "fix bug"])
+    assert cmd.flags["budget_override"] == 120000
+
+
+def test_parse_budget_requires_int():
+    with pytest.raises(CLIParseError):
+        parse_args(["--budget", "lots", "fix bug"])
+
+
+def test_parse_depth_override():
+    cmd = parse_args(["--depth", "deep", "fix bug"])
+    assert cmd.flags["depth_override"] == "deep"
+
+
+def test_parse_depth_invalid_value():
+    with pytest.raises(CLIParseError):
+        parse_args(["--depth", "extreme", "fix bug"])
+
+
+def test_parse_force_red_team():
+    cmd = parse_args(["--red-team", "fix bug"])
+    assert cmd.flags["force_red_team"] is True
+
+
+def test_parse_skip_red_team():
+    cmd = parse_args(["--no-red-team", "fix bug"])
+    assert cmd.flags["skip_red_team"] is True
+
+
+def test_parse_red_team_flags_mutually_exclusive():
+    with pytest.raises(CLIParseError):
+        parse_args(["--red-team", "--no-red-team", "fix bug"])
+
+
+def test_parse_no_codex():
+    cmd = parse_args(["--no-codex", "fix bug"])
+    assert cmd.flags["no_codex"] is True
+
+
+def test_parse_max_iter():
+    cmd = parse_args(["--max-iter", "30", "fix bug"])
+    assert cmd.flags["max_iter"] == 30
+
+
+def test_parse_max_wall_hours():
+    cmd = parse_args(["--max-wall", "12", "fix bug"])
+    assert cmd.flags["max_wall_hours"] == 12
+
+
+def test_parse_force_fallback():
+    cmd = parse_args(["--force-fallback", "grill-me", "fix bug"])
+    assert cmd.flags["force_fallback"] == "grill-me"
+
+
+def test_parse_cli_override():
+    cmd = parse_args(["--cli", "codex", "fix bug"])
+    assert cmd.flags["cli"] == "codex"
+
+
+def test_parse_cli_invalid_value():
+    with pytest.raises(CLIParseError):
+        parse_args(["--cli", "openai", "fix bug"])
