@@ -52,6 +52,23 @@ Changelog: `CHANGELOG.md`
 
 `--red-team` + `--no-red-team` are mutually exclusive.
 
+## Invocation routing (main session — read this before dispatching)
+
+Use `scripts/cli_parser.py::parse_args` to parse the user's `/automl ...` arguments into a `ParsedCommand`, then route as follows:
+
+| ParsedCommand shape | Action |
+|---|---|
+| `command == "invoke"` AND `flags.get("spec")` is set | **Spec bypass path.** Call `scripts/spec_bypass.py::init_run_from_spec(spec_path, run_dir, session_id, pid)`. This reads + validates the existing `goal.md`, copies it into `run_dir/`, writes `state.json` with lifecycle directly at `pursuing` (transition history shows `aligning → pursuing` reason `"spec bypass"`), and seeds `criteria_progress` from the goal's `acceptance_criteria`. **Do NOT dispatch the calibrator subagent. Do NOT run the alignment dialogue.** Skip Phase 0 + Phase 1 entirely; jump straight to the Phase 2 round loop. |
+| `command == "invoke"` AND no `spec` flag, freeform present | Default path: Phase 0 calibrator subagent (using `prompts/calibrator.md`) → Phase 1 alignment dialogue → write `goal.md` + init `state.json` → Phase 2 round loop. |
+| `command == "pause"` | Call `scripts/lifecycle_commands.py::pause(state)`; write returned state. |
+| `command == "resume"` | Call `scripts/lifecycle_commands.py::resume(state, session_id, pid)`; write returned state. |
+| `command == "clear"` | Call `scripts/lifecycle_commands.py::clear(state)`; on success, `rm -rf` the run directory. |
+| `command == "status"` | Read state.json + calibrator.json (best-effort) + env.json + quota → call `scripts/status_renderer.py::render_status(...)` → print. |
+| `command == "list"` | Call `scripts/list_command.py::collect_runs(automl_dir)` then `render_list(rows)` → print. |
+| `command == "history"` | Call `scripts/history_command.py::collect_history(automl_dir)` then `render_history(rows)` → print. |
+
+For `--spec` bypass specifically: the run inherits its `run_id` from the goal.md frontmatter. `run_dir` is `cwd/.automl/{run_id}/`. Because no calibrator was dispatched, no `calibrator.json` is written; `run_summary.py::write_run_summary` is null-safe and will produce a slimmer telemetry block (estimated_tokens=0, diff_pct=null, etc.) at the terminal hook.
+
 ## Migration from v5.10
 
 `/automl-legacy` runs frozen v5.10 during the 4-6 week migration window. Removed flags: `--cap` (calibrator handles), `--max-ticks` (renamed `--max-iter`). `--goal` replaced by `--no-budget` for clearer semantics.
