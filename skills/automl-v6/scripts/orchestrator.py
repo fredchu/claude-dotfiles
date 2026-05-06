@@ -15,6 +15,7 @@ from orphan_recovery import (
     scan_for_orphans,
 )
 from round_dispatch import record_round_boundary
+from run_summary import write_run_summary
 from session_lock import update_heartbeat
 from tick_gate import run_tick_gate
 from worktree_advisory import CwdConflictDecision, check_cwd_conflict
@@ -246,3 +247,21 @@ def heartbeat_state_path(state_path: Path) -> None:
     data = json.loads(state_path.read_text())
     update_heartbeat(data)
     state_path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+TERMINAL_LIFECYCLE_STATES = {"achieved", "unmet", "budget-limited", "aborted"}
+
+
+def write_run_summary_if_terminal(run_dir: Path, state: dict) -> Path | None:
+    """Idempotent terminal hook.
+
+    If state.lifecycle_state is terminal, write/refresh run_summary.md and
+    return its path. Otherwise no-op and return None. Idempotent: calling
+    twice on the same terminal state produces the same file content.
+
+    Phase 4: this is the orchestrator's only run_summary touchpoint. The
+    actual telemetry derivation lives in run_summary.py.
+    """
+    if state.get("lifecycle_state") not in TERMINAL_LIFECYCLE_STATES:
+        return None
+    return write_run_summary(run_dir, state)

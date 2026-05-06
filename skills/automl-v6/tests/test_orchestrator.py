@@ -133,3 +133,64 @@ def test_decide_with_gates_no_trip_falls_to_normal_decision():
     decision = decide_with_gates(state, audit_pass=True, blockers=[])
     assert decision.action == "transition"
     assert decision.target_state == "achieved"
+
+
+def test_write_run_summary_on_terminal_creates_file(tmp_path):
+    """When lifecycle is terminal, the orchestrator helper writes run_summary.md."""
+    import json
+    from orchestrator import write_run_summary_if_terminal
+
+    run_dir = tmp_path / "20260506-200000-test"
+    run_dir.mkdir()
+    (run_dir / "calibrator.json").write_text(json.dumps({
+        "schema_version": "v6.0",
+        "calibrator_confidence": 0.85,
+        "task_classification": {
+            "type": "bug_fix",
+            "estimated_blast_radius": {"files": 1, "modules": 1, "touches_core_abstraction": False},
+            "uncertainty_signals": [],
+        },
+        "alignment": {"dialogue_depth": "shallow", "rationale": "."},
+        "budget": {"estimated_tokens": 50000, "strategy": "soft", "rationale": "."},
+        "verification": {"should_red_team": False, "red_team_rationale": "."},
+        "criteria_template": [{"id": "c1", "desc_draft": "x", "verification_draft": "y", "needs_user_confirmation": False}],
+    }))
+    state = {
+        "schema_version": "v6.0",
+        "run_id": "20260506-200000-test",
+        "lifecycle_state": "achieved",
+        "lifecycle_transitions": [{"from": "pursuing", "to": "achieved", "ts": "2026-05-06T20:30:00+08:00", "reason": "."}],
+        "active_session": None,
+        "criteria_progress": {},
+        "tokens": {"estimated": 50000, "actual": 30000, "by_round": []},
+        "iterations": 2,
+        "expected_wake_at": None,
+        "audit_failure_log": [],
+        "alignment_metadata": None,
+    }
+    out = write_run_summary_if_terminal(run_dir, state)
+    assert out is not None
+    assert out.exists()
+    assert "calibrator_telemetry" in out.read_text()
+
+
+def test_write_run_summary_skipped_when_not_terminal(tmp_path):
+    """No-op when lifecycle is still pursuing/aligning/paused."""
+    from orchestrator import write_run_summary_if_terminal
+
+    run_dir = tmp_path / "20260506-200000-test"
+    run_dir.mkdir()
+    state = {
+        "schema_version": "v6.0",
+        "run_id": "20260506-200000-test",
+        "lifecycle_state": "pursuing",
+        "lifecycle_transitions": [],
+        "active_session": None,
+        "criteria_progress": {},
+        "tokens": {"estimated": 50000, "actual": 1000, "by_round": []},
+        "iterations": 0,
+        "expected_wake_at": None,
+        "audit_failure_log": [],
+    }
+    assert write_run_summary_if_terminal(run_dir, state) is None
+    assert not (run_dir / "run_summary.md").exists()
