@@ -12,7 +12,7 @@ allowed-tools:
   - Bash
 ---
 
-# /automl v6 (Phase 1 + 2 dev)
+# /automl v6.0
 
 Phase 1 implements: calibrator subagent → alignment dialogue → round loop → audit → terminal lifecycle.
 Phase 2 adds: 6 always-on gates (iteration / wall-time / repeat-loop / budget / context / quota) via FIXED ORDER tick_gate orchestrator + RED_TEAM opt-in dispatch.
