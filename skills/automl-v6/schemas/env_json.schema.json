@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "automl v6 env.json",
+  "type": "object",
+  "required": ["schema_version", "skills_available", "tools_available", "fallback_active", "calibration_quality"],
+  "properties": {
+    "schema_version": {"type": "string", "enum": ["v6.0"]},
+    "skills_available": {
+      "type": "object",
+      "additionalProperties": {"type": "boolean"}
+    },
+    "tools_available": {
+      "type": "object",
+      "additionalProperties": {"type": "boolean"}
+    },
+    "fallback_active": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "calibration_quality": {
+      "type": "string",
+      "enum": ["full", "degraded_minor", "degraded_major"]
+    }
+  }
+}

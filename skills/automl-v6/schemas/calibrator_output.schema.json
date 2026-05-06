@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "automl v6 calibrator subagent output",
+  "type": "object",
+  "required": ["schema_version", "calibrator_confidence", "task_classification", "alignment", "budget", "verification", "criteria_template"],
+  "properties": {
+    "schema_version": {"type": "string", "enum": ["v6.0"]},
+    "calibrator_confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+    "task_classification": {
+      "type": "object",
+      "required": ["type", "estimated_blast_radius", "uncertainty_signals"],
+      "properties": {
+        "type": {"type": "string", "enum": ["bug_fix", "refactor", "feature", "research", "docs"]},
+        "estimated_blast_radius": {
+          "type": "object",
+          "required": ["files", "modules", "touches_core_abstraction"],
+          "properties": {
+            "files": {"type": "integer", "minimum": 0},
+            "modules": {"type": "integer", "minimum": 0},
+            "touches_core_abstraction": {"type": "boolean"}
+          }
+        },
+        "uncertainty_signals": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "alignment": {
+      "type": "object",
+      "required": ["dialogue_depth", "rationale"],
+      "properties": {
+        "dialogue_depth": {"type": "string", "enum": ["shallow", "normal", "deep"]},
+        "rationale": {"type": "string"}
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": ["estimated_tokens", "strategy", "rationale"],
+      "properties": {
+        "estimated_tokens": {"type": "integer", "minimum": 0},
+        "strategy": {"type": "string", "enum": ["hard", "soft", "none"]},
+        "rationale": {"type": "string"}
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": ["should_red_team", "red_team_rationale"],
+      "properties": {
+        "should_red_team": {"type": "boolean"},
+        "red_team_rationale": {"type": "string"}
+      }
+    },
+    "criteria_template": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "desc_draft", "verification_draft", "needs_user_confirmation"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^c[0-9]+$"},
+          "desc_draft": {"type": "string", "minLength": 1},
+          "verification_draft": {"type": "string", "minLength": 1},
+          "needs_user_confirmation": {"type": "boolean"}
+        }
+      }
+    },
+    "similar_lessons": {"type": "array", "items": {"type": "string"}}
+  }
+}

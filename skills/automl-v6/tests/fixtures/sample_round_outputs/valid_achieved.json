@@ -1,0 +1,29 @@
+{
+  "round_id": 2,
+  "tokens_used_this_round": 8400,
+  "criteria_progress_update": {
+    "c1": {
+      "status": "achieved",
+      "evidence": [
+        {
+          "type": "file_change",
+          "path": "src/auth/token.py:142-156",
+          "summary": "Added refresh_token() with retry logic"
+        },
+        {
+          "type": "command_output",
+          "command": "pytest tests/auth/test_token.py::test_refresh -v",
+          "verbatim_excerpt": "test_refresh PASSED [100%]\n1 passed in 0.4s"
+        },
+        {
+          "type": "audit_check",
+          "criterion_verbatim": "Bug A reproduces in failing test, then passes after fix",
+          "satisfied": true,
+          "rationale": "git show HEAD~1 confirms test failed pre-fix; HEAD passes"
+        }
+      ]
+    }
+  },
+  "blockers": [],
+  "main_session_action_request": null
+}

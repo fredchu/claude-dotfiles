@@ -1,0 +1,35 @@
+{
+  "schema_version": "v6.0",
+  "calibrator_confidence": 0.85,
+  "task_classification": {
+    "type": "bug_fix",
+    "estimated_blast_radius": {
+      "files": 2,
+      "modules": 1,
+      "touches_core_abstraction": false
+    },
+    "uncertainty_signals": []
+  },
+  "alignment": {
+    "dialogue_depth": "shallow",
+    "rationale": "User provided concrete repro test command"
+  },
+  "budget": {
+    "estimated_tokens": 40000,
+    "strategy": "hard",
+    "rationale": "Small bug fix, 1-2 files affected"
+  },
+  "verification": {
+    "should_red_team": false,
+    "red_team_rationale": "Low blast radius, evaluator straightforward"
+  },
+  "criteria_template": [
+    {
+      "id": "c1",
+      "desc_draft": "Bug X reproduces in failing test, then passes after fix",
+      "verification_draft": "pytest tests/auth/test_x.py::test_repro -v",
+      "needs_user_confirmation": false
+    }
+  ],
+  "similar_lessons": []
+}

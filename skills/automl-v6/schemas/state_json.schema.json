@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "automl v6 state.json",
+  "type": "object",
+  "required": [
+    "schema_version", "run_id", "lifecycle_state",
+    "lifecycle_transitions", "active_session", "criteria_progress",
+    "tokens", "iterations", "expected_wake_at", "audit_failure_log"
+  ],
+  "properties": {
+    "schema_version": {"type": "string", "enum": ["v6.0"]},
+    "run_id": {"type": "string", "pattern": "^[0-9]{8}-[0-9]{6}-[a-z0-9]{4,}$"},
+    "lifecycle_state": {
+      "type": "string",
+      "enum": ["aligning", "pursuing", "paused", "achieved", "unmet", "budget-limited", "aborted"]
+    },
+    "lifecycle_transitions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from", "to", "ts", "reason"],
+        "properties": {
+          "from": {"type": ["string", "null"]},
+          "to": {"type": "string"},
+          "ts": {"type": "string", "format": "date-time"},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "active_session": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["session_id", "pid", "started_at", "last_heartbeat"],
+          "properties": {
+            "session_id": {"type": "string"},
+            "pid": {"type": "integer"},
+            "started_at": {"type": "string", "format": "date-time"},
+            "last_heartbeat": {"type": "string", "format": "date-time"}
+          }
+        }
+      ]
+    },
+    "criteria_progress": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status", "evidence"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pending", "pursuing", "achieved", "blocked", "needs_user_clarification", "pursuing-regressed"]
+          },
+          "evidence": {"type": "array"},
+          "achieved_at_round": {"type": ["integer", "null"]}
+        }
+      }
+    },
+    "tokens": {
+      "type": "object",
+      "required": ["estimated", "actual", "by_round"],
+      "properties": {
+        "estimated": {"type": "integer", "minimum": 0},
+        "actual": {"type": "integer", "minimum": 0},
+        "by_round": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["round", "tokens"],
+            "properties": {
+              "round": {"type": "integer"},
+              "tokens": {"type": "integer"}
+            }
+          }
+        }
+      }
+    },
+    "iterations": {"type": "integer", "minimum": 0},
+    "expected_wake_at": {"type": ["string", "null"]},
+    "audit_failure_log": {"type": "array"}
+  }
+}

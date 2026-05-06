@@ -1,0 +1,14 @@
+{
+  "round_id": 2,
+  "tokens_used_this_round": 1200,
+  "criteria_progress_update": {
+    "c1": {
+      "status": "achieved",
+      "evidence": [
+        {"type": "command_output", "command": "pytest", "verbatim_excerpt": "tests pass"}
+      ]
+    }
+  },
+  "blockers": [],
+  "main_session_action_request": null
+}

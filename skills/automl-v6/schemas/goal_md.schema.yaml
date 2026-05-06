@@ -1,0 +1,47 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: automl v6 goal.md frontmatter
+type: object
+required: [run_id, schema_version, calibrator, acceptance_criteria]
+properties:
+  run_id:
+    type: string
+    pattern: '^[0-9]{8}-[0-9]{6}-[a-z0-9]{4,}$'
+  schema_version:
+    type: string
+    enum: [v6.0]
+  calibrator:
+    type: object
+    required: [dialogue_depth, budget_estimate, budget_strategy, confidence]
+    properties:
+      dialogue_depth:
+        type: string
+        enum: [shallow, normal, deep]
+      budget_estimate:
+        type: integer
+        minimum: 0
+      budget_strategy:
+        type: string
+        enum: [hard, soft, none]
+      confidence:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+      similar_lessons:
+        type: array
+        items: {type: string}
+  acceptance_criteria:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [id, desc, verification]
+      properties:
+        id:
+          type: string
+          pattern: '^c[0-9]+$'
+        desc:
+          type: string
+          minLength: 1
+        verification:
+          type: string
+          minLength: 1

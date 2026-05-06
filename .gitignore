@@ -28,11 +28,20 @@
 !skills/*/scripts/**
 !skills/*/docs/
 !skills/*/docs/**
+!skills/*/prompts/
+!skills/*/prompts/**
+!skills/*/schemas/
+!skills/*/schemas/**
+!skills/*/tests/
+!skills/*/tests/**
+!skills/*/CHANGELOG.md
+!skills/*/ALGORITHM.md
+!skills/*/README.md
 # === 排除：skill 內的產物 ===
 skills/*/.venv/
 skills/*/__pycache__/
-skills/*/scripts/__pycache__/
-skills/*/scripts/lib/__pycache__/
+skills/*/**/__pycache__/
+skills/*/.pytest_cache/
 *-workspace/
 # zlibrary 是外部 repo + 巨大 .venv，整個排除
 skills/zlibrary-to-notebooklm/

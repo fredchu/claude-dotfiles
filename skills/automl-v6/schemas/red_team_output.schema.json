@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "automl v6 RED_TEAM output",
+  "type": "object",
+  "required": ["schema_version", "round_id", "findings", "blind_spots", "verdict"],
+  "properties": {
+    "schema_version": {"type": "string", "enum": ["v6.0"]},
+    "round_id": {"type": "integer", "minimum": 1, "maximum": 2},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["criterion_id", "gaming_approach", "likelihood"],
+        "properties": {
+          "criterion_id": {"type": "string"},
+          "gaming_approach": {"type": "string"},
+          "likelihood": {"enum": ["high", "med", "low"]},
+          "evidence_of_gameability": {"type": "string"},
+          "suggested_hardening": {"type": "string"}
+        }
+      }
+    },
+    "blind_spots": {"type": "array"},
+    "verdict": {"type": "string", "enum": ["PASS", "BLOCKED"]}
+  }
+}

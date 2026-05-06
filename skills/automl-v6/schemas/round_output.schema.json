@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "automl v6 round subagent output",
+  "type": "object",
+  "required": ["round_id", "tokens_used_this_round", "criteria_progress_update", "blockers"],
+  "properties": {
+    "round_id": {"type": "integer", "minimum": 1},
+    "tokens_used_this_round": {"type": "integer", "minimum": 0},
+    "criteria_progress_update": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status", "evidence"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pending", "pursuing", "achieved", "blocked", "needs_user_clarification", "pursuing-regressed"]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["type"],
+              "oneOf": [
+                {
+                  "properties": {
+                    "type": {"enum": ["file_change"]},
+                    "path": {"type": "string", "minLength": 1},
+                    "summary": {"type": "string", "minLength": 1}
+                  },
+                  "required": ["type", "path", "summary"]
+                },
+                {
+                  "properties": {
+                    "type": {"enum": ["command_output"]},
+                    "command": {"type": "string", "minLength": 1},
+                    "verbatim_excerpt": {"type": "string", "minLength": 1}
+                  },
+                  "required": ["type", "command", "verbatim_excerpt"]
+                },
+                {
+                  "properties": {
+                    "type": {"enum": ["audit_check"]},
+                    "criterion_verbatim": {"type": "string", "minLength": 1},
+                    "satisfied": {"type": "boolean"},
+                    "rationale": {"type": "string", "minLength": 1}
+                  },
+                  "required": ["type", "criterion_verbatim", "satisfied", "rationale"]
+                }
+              ]
+            }
+          },
+          "next_step_attempt": {"type": "string"}
+        }
+      }
+    },
+    "blockers": {"type": "array", "items": {"type": "string"}},
+    "main_session_action_request": {"type": ["string", "null"]}
+  }
+}

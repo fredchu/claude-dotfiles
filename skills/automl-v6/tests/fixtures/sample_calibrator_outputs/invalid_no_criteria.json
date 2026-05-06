@@ -1,0 +1,13 @@
+{
+  "schema_version": "v6.0",
+  "calibrator_confidence": 0.85,
+  "task_classification": {
+    "type": "bug_fix",
+    "estimated_blast_radius": {"files": 2, "modules": 1, "touches_core_abstraction": false},
+    "uncertainty_signals": []
+  },
+  "alignment": {"dialogue_depth": "shallow", "rationale": "..."},
+  "budget": {"estimated_tokens": 40000, "strategy": "hard", "rationale": "..."},
+  "verification": {"should_red_team": false, "red_team_rationale": "..."},
+  "criteria_template": []
+}
