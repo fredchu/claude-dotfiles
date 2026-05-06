@@ -121,3 +121,16 @@ def test_write_run_summary_idempotent_overwrites(tmp_path, calibrator_fixture, s
     write_run_summary(run_dir, state_fixture)
     md = (run_dir / "run_summary.md").read_text()
     assert "actual_tokens: 25000" in md
+
+
+def test_write_run_summary_handles_missing_calibrator(tmp_path, state_fixture):
+    """--spec bypass runs have no calibrator.json; telemetry block uses defaults, no crash."""
+    run_dir = tmp_path / "20260506-200000-spec"
+    run_dir.mkdir()
+    out = write_run_summary(run_dir, state_fixture)
+    md = out.read_text()
+    assert (run_dir / "run_summary.md").exists()
+    assert "lifecycle_state: achieved" in md
+    # estimated_tokens defaults to 0 when calibrator absent; diff_pct becomes None
+    assert "estimated_tokens: 0" in md
+    assert "diff_pct: null" in md

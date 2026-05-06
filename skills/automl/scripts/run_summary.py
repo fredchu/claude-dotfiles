@@ -89,13 +89,18 @@ def build_run_summary_md(calibrator: dict, state: dict) -> str:
 def write_run_summary(run_dir: Path, state: dict) -> Path:
     """Read calibrator.json + state -> write run_summary.md (overwrite if exists).
 
+    If calibrator.json is absent (e.g. --spec bypass runs that skipped the
+    calibrator phase), passes an empty calibrator dict; build_calibrator_telemetry
+    is null-safe so the telemetry block resolves to defaults / None.
+
     Returns the path written. Caller is responsible for ensuring this is only
     invoked once per terminal transition (orchestrator hook gates on lifecycle).
     """
     calibrator_path = run_dir / "calibrator.json"
-    if not calibrator_path.exists():
-        raise FileNotFoundError(f"calibrator.json not found at {calibrator_path}")
-    calibrator = json.loads(calibrator_path.read_text())
+    if calibrator_path.exists():
+        calibrator = json.loads(calibrator_path.read_text())
+    else:
+        calibrator = {}
 
     md = build_run_summary_md(calibrator, state)
     out = run_dir / "run_summary.md"
