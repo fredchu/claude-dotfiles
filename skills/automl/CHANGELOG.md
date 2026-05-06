@@ -1,5 +1,75 @@
 # Changelog
 
+## v6.0.0 — 2026-05-06 (v6 GA — UX commands + migration + ship gate)
+
+Phase 5 surfaced the full v6 user-facing command set, tightened a Phase 4
+telemetry proxy, parallel-installed `/automl-legacy` (frozen v5.10), and
+flipped the dev skill `automl-v6` → `automl` for GA.
+
+### Added
+- `scripts/cli_parser.py` — pause / resume / clear / history subcommands +
+  9 flags from spec §8.2 (`--budget`, `--depth`, `--red-team`, `--no-red-team`,
+  `--no-codex`, `--max-iter`, `--max-wall`, `--force-fallback`, `--cli`).
+- `scripts/lifecycle_commands.py` — `pause`, `resume`, `clear` mutators
+  using the Phase 1 lifecycle_fsm validator. Pause releases active_session;
+  resume claims it; clear refuses on non-terminal.
+- `scripts/status_renderer.py` — multi-section text per spec §8.3
+  (header / tokens / criteria / calibration / quota / context / degraded /
+  last activity).
+- `scripts/list_command.py` — scan cwd `.automl/` and render per-run summary.
+- `scripts/history_command.py` — read run_summary.md cohort and render
+  calibrator-vs-actual telemetry per run.
+- `scripts/run_summary_io.py` — shared YAML frontmatter parser
+  (extracted to keep history_command and calibrator_review aligned).
+- `scripts/red_team_dispatch.py::record_red_team_invocation` — appends
+  to a new state field `red_team_invocations`. Replaces the Phase 4
+  audit-log proxy for `red_team_skipped` derivation; the proxy remains as
+  fallback for pre-Phase-5 runs.
+- `schemas/state_json.schema.json` — additive optional
+  `red_team_invocations: list[{round_id, ts, verdict, rationale?}] | None`.
+- `scripts/state_io.py::init_state` — seeds `red_team_invocations: []`.
+- `tests/e2e/test_pause_resume_cycle.py` — round-trip lifecycle E2E.
+- `tests/test_ship_gate_acceptance.md` — §11.5 ship gate checklist with
+  test mapping per item + dogfood log.
+
+### Modified
+- `scripts/run_summary.py::build_calibrator_telemetry` — `red_team_skipped`
+  consults `red_team_invocations` first, falls back to audit-log proxy.
+
+### Skill rename
+- `~/.claude/skills/automl-v6/` → `~/.claude/skills/automl/` (v6.0 GA).
+- `~/.claude/skills/automl/` (v5.10) → `~/.claude/skills/automl-legacy/`
+  (symlink → `/Users/fredchu/dev/claude-automl`, frontmatter `name: automl-legacy`).
+- Both skills coexist during the 4-6 week migration window per spec §12.1.
+
+### Test coverage
+- 221 in-skill tests (Phase 1 60 + Phase 2 48 + Phase 3 41 + Phase 4 ~16 + Phase 5 56) +
+  8 in `For_Claude/scripts/calibrator_review/`.
+
+### Phase 5 deferred (post-GA / future work)
+- Cross-machine `run_summary.md` sync — v6.x.
+- Adapter rollouts: v6.1 Codex `/goal`, v6.2 Gemini (per spec §12.4).
+- Calibrator prompt evolution / half-yearly retune workflow.
+- `--spec-only` mode (v6.3 per spec §14).
+- Mid-run goal editability (`--allow-goal-edit`).
+- Manual launchd weekly → monthly schedule flip after 3 months
+  (documented manual op, no automation).
+
+### Plan deviations
+- Task 3 (lifecycle_commands clear): error message phrased
+  `"clear refused: lifecycle is X, must be terminal (one of ...)"` to
+  match the test's `match="terminal"` regex (plan example lacked the word).
+  Strictly more informative than the plan's literal example.
+- Task 4 (status_renderer confidence formatter): refactored from inline
+  conditional to local `conf_str` if/else block. Functionally identical,
+  cleaner parse.
+- Task 7 (skill rename): legacy SKILL.md edit landed as a separate commit
+  `26dbb82` in the `/Users/fredchu/dev/claude-automl` repo (the symlink
+  target), not in claude-dotfiles. Caught by reviewer; fixed before GA.
+- Task 8 E2E: run_id changed to `20260506-200000-pare` (no hyphens in
+  suffix) to satisfy schema regex, and pause/resume calls wrapped inside
+  `atomic_update` mutators to match the existing `test_happy_path.py` pattern.
+
 ## v6.0.0-alpha.4 — 2026-05-06 (Phase 4 dev complete)
 
 Phase 4 calibrator self-improvement loop landed. Per-run telemetry capture
