@@ -6,7 +6,7 @@ Phase 3 flags: --allow-cwd-conflict, --autonomous.
 """
 from dataclasses import dataclass, field
 
-KNOWN_SUBCOMMANDS = {"status", "list"}
+KNOWN_SUBCOMMANDS = {"status", "list", "pause", "resume", "clear", "history"}
 
 
 class CLIParseError(Exception):

@@ -72,3 +72,35 @@ def test_status_with_autonomous_flag():
     parsed = parse_args(["--autonomous", "status"])
     assert parsed.command == "status"
     assert parsed.autonomous is True
+
+
+def test_parse_pause_with_run_id():
+    cmd = parse_args(["pause", "20260506-143022-a8f3"])
+    assert cmd.command == "pause"
+    assert cmd.run_id == "20260506-143022-a8f3"
+
+
+def test_parse_pause_without_run_id():
+    """Pause with no run_id targets the only active run (orchestrator resolves)."""
+    cmd = parse_args(["pause"])
+    assert cmd.command == "pause"
+    assert cmd.run_id is None
+
+
+def test_parse_resume_with_run_id():
+    cmd = parse_args(["resume", "20260506-143022-a8f3"])
+    assert cmd.command == "resume"
+    assert cmd.run_id == "20260506-143022-a8f3"
+
+
+def test_parse_clear_with_run_id():
+    cmd = parse_args(["clear", "20260506-143022-a8f3"])
+    assert cmd.command == "clear"
+    assert cmd.run_id == "20260506-143022-a8f3"
+
+
+def test_parse_history_command():
+    """history takes no run_id."""
+    cmd = parse_args(["history"])
+    assert cmd.command == "history"
+    assert cmd.run_id is None
