@@ -95,3 +95,17 @@ def build_initial_goal_draft(
         "body": body,
         "needs_user_confirmation_ids": needs_confirm,
     }
+
+
+def record_alignment_completion(state: dict, questions_asked: int, depth: str) -> None:
+    """Stamp how many questions were asked + the realized dialogue depth.
+
+    Phase 4 telemetry: feeds calibrator_telemetry.actual_questions_asked +
+    actual_dialogue_depth in run_summary.md. Called by the main session at
+    the moment goal.md is finalized and lifecycle transitions
+    aligning -> pursuing.
+    """
+    state["alignment_metadata"] = {
+        "questions_asked": questions_asked,
+        "depth": depth,
+    }

@@ -49,3 +49,17 @@ def test_build_initial_goal_draft_from_calibrator_template():
     assert draft["frontmatter"]["acceptance_criteria"][0]["desc"] == "Bug A fixed"
     assert "Fix auth bugs" in draft["body"]
     assert "c2" in draft["needs_user_confirmation_ids"]
+
+
+def test_record_alignment_completion_sets_metadata():
+    from alignment_dialogue import record_alignment_completion
+    state = {"alignment_metadata": None}
+    record_alignment_completion(state, questions_asked=3, depth="normal")
+    assert state["alignment_metadata"] == {"questions_asked": 3, "depth": "normal"}
+
+
+def test_record_alignment_completion_overwrites_existing():
+    from alignment_dialogue import record_alignment_completion
+    state = {"alignment_metadata": {"questions_asked": 1, "depth": "shallow"}}
+    record_alignment_completion(state, questions_asked=5, depth="deep")
+    assert state["alignment_metadata"] == {"questions_asked": 5, "depth": "deep"}
