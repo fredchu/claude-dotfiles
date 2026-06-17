@@ -1,4 +1,7 @@
 {
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
   "permissions": {
     "allow": [
       "Read",
@@ -13,6 +16,7 @@
       "Bash(npx:*)",
       "Bash(python3:*)",
       "Bash(pip:*)",
+      "Bash(pip3:*)",
       "Bash(cat:*)",
       "Bash(mkdir:*)",
       "Bash(cp:*)",
@@ -21,12 +25,142 @@
       "Bash(gh:*)",
       "Bash(mcporter:*)",
       "Bash(openclaw:*)",
-      "Bash(claude:*)"
+      "Bash(claude:*)",
+      "Bash(which:*)",
+      "Bash(find:*)",
+      "Bash(mdfind:*)",
+      "Bash(swift:*)",
+      "Bash(xcodebuild:*)",
+      "Bash(xcrun:*)",
+      "Bash(/Users/fredchu/bin/rem:*)",
+      "Bash(/Users/fredchu/bin/ical:*)",
+      "Bash(echo:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(sort:*)",
+      "Bash(uniq:*)",
+      "Bash(dirname:*)",
+      "Bash(basename:*)",
+      "Bash(date:*)",
+      "Bash(curl:*)",
+      "Bash(jq:*)",
+      "Bash(sed:*)",
+      "Bash(awk:*)",
+      "Bash(tar:*)",
+      "Bash(unzip:*)",
+      "Bash(chmod:*)",
+      "Bash(touch:*)",
+      "Bash(diff:*)",
+      "Bash(tee:*)",
+      "Bash(open:*)",
+      "Bash(pbcopy:*)",
+      "Bash(pbpaste:*)",
+      "Bash(codex:*)",
+      "Bash(/Users/fredchu/bin/codex-dispatch:*)",
+      "Bash(/Users/fredchu/bin/codex-auto-review:*)",
+      "Bash(/Users/fredchu/bin/codex-or-local:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)",
+      "Bash(git pull:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(ffmpeg:*)",
+      "Bash(opencc:*)",
+      "Bash(claude --version:*)",
+      "Bash(pip3 list:*)",
+      "Bash(git push:*)",
+      "Bash(./test_single_segment.sh:*)",
+      "Bash(bun:*)",
+      "Bash(brew list:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh api:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(test:*)",
+      "WebSearch",
+      "WebFetch(domain:securitylabs.datadoghq.com)",
+      "WebFetch(domain:dbhub.ai)",
+      "Bash(mlx_whisper:*)",
+      "Bash(cp /Users/fredchu/Documents/For_Claude/inbox/automl-v3-main.md /Users/fredchu/.claude/skills/automl/SKILL.md)",
+      "Bash(cp /Users/fredchu/Documents/For_Claude/inbox/automl-v3-reference.md /Users/fredchu/.claude/skills/automl/references/automl-reference.md)",
+      "mcp__apple-notes__search-notes",
+      "Bash(osascript -e ':*)",
+      "Bash(osascript:*)"
     ],
-    "defaultMode": "dontAsk"
+    "defaultMode": "auto"
   },
-  "model": "opus",
   "hooks": {
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -sf -m 2 -X POST -H 'Content-Type: application/json' -d \"$(cat)\" http://localhost:$(cat ~/.ccani/port 2>/dev/null || echo 19280)/hook || true",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "LSP",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/scripts/lsp-retry-hint.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -sf -m 2 -X POST -H 'Content-Type: application/json' -d \"$(cat)\" http://localhost:$(cat ~/.ccani/port 2>/dev/null || echo 19280)/hook || true",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -sf -m 2 -X POST -H 'Content-Type: application/json' -d \"$(cat)\" http://localhost:$(cat ~/.ccani/port 2>/dev/null || echo 19280)/hook || true",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -sf -m 2 -X POST -H 'Content-Type: application/json' -d \"$(cat)\" http://localhost:$(cat ~/.ccani/port 2>/dev/null || echo 19280)/hook || true",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -sf -m 2 -X POST -H 'Content-Type: application/json' -d \"$(cat)\" http://localhost:$(cat ~/.ccani/port 2>/dev/null || echo 19280)/hook || true",
+            "async": true
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "",
@@ -36,23 +170,141 @@
             "command": "~/.claude/scripts/fetch-handoff.sh"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -sf -m 2 -X POST -H 'Content-Type: application/json' -d \"$(cat)\" http://localhost:$(cat ~/.ccani/port 2>/dev/null || echo 19280)/hook || true",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/fredchu/bin/codex-review-reminder"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -sf -m 2 -X POST -H 'Content-Type: application/json' -d \"$(cat)\" http://localhost:$(cat ~/.ccani/port 2>/dev/null || echo 19280)/hook || true",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -sf -m 2 -X POST -H 'Content-Type: application/json' -d \"$(cat)\" http://localhost:$(cat ~/.ccani/port 2>/dev/null || echo 19280)/hook || true",
+            "async": true
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/scripts/dispatch_advisory_hook.sh"
+          }
+        ]
       }
     ]
   },
+  "statusLine": {
+    "type": "command",
+    "command": "bash -c 'plugin_dir=$(ls -d \"$HOME\"/.claude/plugins/cache/claude-hud/claude-hud/*/ 2>/dev/null | awk -F/ '\"'\"'{ print $(NF-1) \"\\t\" $0 }'\"'\"' | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n | tail -1 | cut -f2-); exec \"/opt/homebrew/bin/bun\" \"${plugin_dir}src/index.ts\"'"
+  },
   "enabledPlugins": {
-    "swift-lsp@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true,
-    "context7@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true,
-    "security-guidance@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": true,
-    "pyright-lsp@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true,
+    "claude-hud@claude-hud": true,
+    "claude-md-management@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "finance@knowledge-work-plugins": true,
+    "marketing@knowledge-work-plugins": true,
+    "operations@knowledge-work-plugins": true,
+    "playground@claude-plugins-official": true,
+    "playwright@claude-plugins-official": false,
     "plugin-dev@claude-plugins-official": true,
-    "playground@claude-plugins-official": true
+    "product-management@knowledge-work-plugins": false,
+    "pyright-lsp@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "swift-lsp@claude-plugins-official": true,
+    "discord@claude-plugins-official": true,
+    "iterm2-tab-status@jaspersui-marketplace": true,
+    "minimalist-entrepreneur@minimalist-entrepreneur": true,
+    "engineering@knowledge-work-plugins": true,
+    "design@knowledge-work-plugins": true,
+    "ralph-loop@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-hud": {
+      "source": {
+        "source": "github",
+        "repo": "jarrodwatts/claude-hud"
+      }
+    },
+    "knowledge-work-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/knowledge-work-plugins"
+      },
+      "autoUpdate": true
+    },
+    "jaspersui-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "JasperSui/jaspersui-marketplace"
+      }
+    },
+    "minimalist-entrepreneur": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/fredchu/ghkb/interested/slavingia-skills"
+      }
+    }
   },
   "language": "台灣繁體中文",
-  "skipDangerousModePermissionPrompt": true
+  "effortLevel": "high",
+  "skipDangerousModePermissionPrompt": true,
+  "remoteControlAtStartup": false,
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true,
+  "mcpServers": {},
+  "allowedTools": [
+    "mcp__ghost-os__*",
+    "mcp__apple-notes__*",
+    "mcp__google_workspace__*",
+    "mcp__alpaca__*",
+    "mcp__yfmcp__*",
+    "mcp__navitime-transit__*",
+    "mcp__figma-console__*",
+    "mcp__plugin_context7_context7__*",
+    "mcp__plugin_discord_discord__*",
+    "mcp__mcp-fredapi__*",
+    "mcp__claude_ai_Gmail__*",
+    "mcp__claude_ai_Google_Calendar__*",
+    "mcp__claude_ai_Hugging_Face__*",
+    "mcp__claude_ai_DirectBooker__*",
+    "WebSearch",
+    "WebFetch",
+    "mcp__academic-hub__*"
+  ]
 }
