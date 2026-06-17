@@ -14,9 +14,13 @@ input="$(cat)"
 TIMEOUT_BIN="$(command -v timeout || command -v gtimeout)"
 if [ -n "$TIMEOUT_BIN" ]; then
   out="$(printf '%s' "$input" | "$TIMEOUT_BIN" 3 python3 "$ROUTER" 2>/dev/null)"
+  rc=$?
 else
   out="$(printf '%s' "$input" | python3 "$ROUTER" 2>/dev/null)"
+  rc=$?
 fi
+# spec §3.2 fail-safe：router 非 0 exit（含 timeout 124）一律靜默，不解析 stdout
+[ "$rc" -eq 0 ] || exit 0
 [ -n "$out" ] || exit 0
 
 decision="$(printf '%s' "$out" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("decision",""))' 2>/dev/null)"
