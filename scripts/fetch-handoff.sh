@@ -1,55 +1,21 @@
 #!/bin/bash
-# Fetch agent-specific + shared Session Handoff from Apple Notes "Claude 工作區"
+# Fetch agent-specific + shared Session Handoff from the Obsidian vault「Agent 工作區」.
 # Used by Claude Code SessionStart hook to inject handoff context automatically.
-# This is the PRO CC version — reads "Session Handoff — Pro CC" + "Session Handoff — Shared"
+# This is the PRO CC version — reads handoff/Active/Pro CC.md + handoff/Shared/*.md.
+# Cutover 2026-07-21 (Obsidian migration Phase 1); Apple Notes version backed up at
+# fetch-handoff.sh.bak-applenotes-20260721.
 
-osascript -e '
-tell application "Notes"
-    set targetFolder to folder "Claude 工作區" of account "iCloud"
-    set allNotes to notes of targetFolder
-    set output to ""
+HANDOFF_ROOT="$HOME/Library/Mobile Documents/iCloud~md~obsidian/Documents/Agent 工作區/handoff"
+CLI="$HOME/.claude/skills/session-handoff/scripts/handoff_cli.py"
 
-    -- Read private note
-    repeat with aNote in allNotes
-        if name of aNote is "Session Handoff — Pro CC" then
-            set noteText to plaintext of aNote
-            set modDate to modification date of aNote
-            if length of noteText > 1800 then
-                set noteText to text 1 thru 1800 of noteText & return & "[truncated]"
-            end if
-            set output to output & "Session Handoff — Pro CC (updated: " & modDate & "):" & return & noteText & return & return
-            exit repeat
-        end if
-    end repeat
+if [ ! -f "$CLI" ]; then
+    echo "ℹ️ handoff_cli.py 不存在（$CLI）— session-handoff skill 未安裝？"
+    exit 0
+fi
 
-    -- Read shared note
-    repeat with aNote in allNotes
-        if name of aNote is "Session Handoff — Shared" then
-            set noteText to plaintext of aNote
-            set modDate to modification date of aNote
-            if length of noteText > 1200 then
-                set noteText to text 1 thru 1200 of noteText & return & "[truncated]"
-            end if
-            set output to output & "Session Handoff — Shared (updated: " & modDate & "):" & return & noteText
-            exit repeat
-        end if
-    end repeat
-
-    -- Fallback: try legacy "Session Handoff — Active"
-    if output is "" then
-        repeat with aNote in allNotes
-            if name of aNote is "Session Handoff — Active" then
-                set noteText to plaintext of aNote
-                set modDate to modification date of aNote
-                if length of noteText > 2500 then
-                    set noteText to text 1 thru 2500 of noteText & return & "[truncated]"
-                end if
-                return "Session Handoff — Active (updated: " & modDate & "):" & return & noteText
-            end if
-        end repeat
-        return "ℹ️ 沒有 Session Handoff 筆記"
-    end if
-
-    return output
-end tell
-'
+/usr/bin/python3 "$CLI" session-start \
+    --root "$HANDOFF_ROOT" \
+    --agent "Pro CC" \
+    --active-budget 1800 \
+    --shared-budget 1200 \
+    2>>"$HOME/.claude/scripts/handoff-fetch.log"

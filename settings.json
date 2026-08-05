@@ -87,7 +87,12 @@
       "Bash(cp /Users/fredchu/Documents/For_Claude/inbox/automl-v3-reference.md /Users/fredchu/.claude/skills/automl/references/automl-reference.md)",
       "mcp__apple-notes__search-notes",
       "Bash(osascript -e ':*)",
-      "Bash(osascript:*)"
+      "Bash(osascript:*)",
+      "mcp__apple-notes__get-note-by-id",
+      "mcp__apple-notes__get-note-content",
+      "Read(//private/tmp/**)",
+      "Read(//Users/fredchu/dev/**)",
+      "Read(//Users/fredchu/.claude/skills/**)"
     ],
     "defaultMode": "auto"
   },
@@ -180,6 +185,16 @@
             "async": true
           }
         ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Users/fredchu/.claude/hooks/herdr-agent-state.sh' session",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "Stop": [
@@ -235,24 +250,24 @@
     "claude-md-management@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
+    "design@knowledge-work-plugins": true,
+    "discord@claude-plugins-official": true,
+    "engineering@knowledge-work-plugins": true,
     "finance@knowledge-work-plugins": true,
+    "iterm2-tab-status@jaspersui-marketplace": true,
     "marketing@knowledge-work-plugins": true,
+    "minimalist-entrepreneur@minimalist-entrepreneur": true,
     "operations@knowledge-work-plugins": true,
     "playground@claude-plugins-official": true,
     "playwright@claude-plugins-official": false,
     "plugin-dev@claude-plugins-official": true,
     "product-management@knowledge-work-plugins": false,
     "pyright-lsp@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
-    "swift-lsp@claude-plugins-official": true,
-    "discord@claude-plugins-official": true,
-    "iterm2-tab-status@jaspersui-marketplace": true,
-    "minimalist-entrepreneur@minimalist-entrepreneur": true,
-    "engineering@knowledge-work-plugins": true,
-    "design@knowledge-work-plugins": true,
-    "ralph-loop@claude-plugins-official": true
+    "swift-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-hud": {
@@ -261,18 +276,18 @@
         "repo": "jarrodwatts/claude-hud"
       }
     },
+    "jaspersui-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "JasperSui/jaspersui-marketplace"
+      }
+    },
     "knowledge-work-plugins": {
       "source": {
         "source": "github",
         "repo": "anthropics/knowledge-work-plugins"
       },
       "autoUpdate": true
-    },
-    "jaspersui-marketplace": {
-      "source": {
-        "source": "github",
-        "repo": "JasperSui/jaspersui-marketplace"
-      }
     },
     "minimalist-entrepreneur": {
       "source": {
@@ -283,11 +298,14 @@
   },
   "language": "台灣繁體中文",
   "effortLevel": "high",
+  "tui": "fullscreen",
+  "autoMemoryDirectory": "/Users/fredchu/.agents/memory",
   "skipDangerousModePermissionPrompt": true,
+  "editorMode": "normal",
+  "teammateMode": "in-process",
   "remoteControlAtStartup": false,
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
-  "mcpServers": {},
   "allowedTools": [
     "mcp__ghost-os__*",
     "mcp__apple-notes__*",
@@ -306,5 +324,7 @@
     "WebSearch",
     "WebFetch",
     "mcp__academic-hub__*"
-  ]
+  ],
+  "mcpServers": {},
+  "model": "claude-fable-5[1m]"
 }
