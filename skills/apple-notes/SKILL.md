@@ -8,26 +8,38 @@ description: "Manages Apple Notes via MCP tools. Use when the user mentions 筆�
 ## Gotchas (Read First)
 
 1. **所有我產生的內容一律放「Claude 工作區」資料夾** — 不碰用戶其他資料夾，除非明確要求
-2. **create-note 無法指定資料夾** — 必須先 create，再用 move-note 搬到「Claude 工作區」
-3. **格式用 HTML**（`format: "html"`）— Apple Notes 不渲染 markdown
+2. **建立筆記用 AppleScript**（不用 MCP create-note，因為 title 參數會標題重複）
+3. **格式用 HTML** — Apple Notes 不渲染 markdown
 4. **update-note 是全量覆寫** — 必須先 get-note-content 讀取現有內容，合併後再寫回
 5. **搜尋先用用戶原話** — 搜不到再 list-folders 看結構，最後才擴展關鍵字
 6. **密碼保護的筆記無法存取** — 遇到時告知用戶
 
+## macOS 26 HTML 格式規則（必遵守）
+
+macOS 26 Notes.app 會自動加 font-size: 11px。`<h2>`/`<h3>` 在 iPhone 上會變小字。
+
+| 格式 | HTML |
+|------|------|
+| 筆記標題 | `<h1>...</h1>` |
+| 段落標題 | `<div><span style="font-size: 18px"><b>...</b></span></div>` |
+| 內文 | `<div>...</div>`（不加 font-size） |
+| 清單 | `<ul><li>...</li></ul>` 或 `<ol><li>...</li></ol>` |
+| 空行 | `<div><br></div>` |
+
+**禁止**：`<h2>`/`<h3>`、`<p>`、font-size 19px+
+
 ## 建立筆記的標準流程
 
-```
-1. mcp__apple-notes__create-note
-   - title: "筆記標題"
-   - body: "<h1>標題</h1><p>內容</p>"
-   - format: "html"
-
-2. mcp__apple-notes__move-note
-   - title: "筆記標題"
-   - folder: "Claude 工作區"
+```applescript
+-- 用 AppleScript 建立（避免 MCP create-note 標題重複）
+tell application "Notes"
+    tell account "iCloud"
+        make new note at folder "Claude 工作區" with properties {body:"<h1>標題</h1><div>內容</div>"}
+    end tell
+end tell
 ```
 
-永遠兩步走，不可省略 move-note。
+讀取/搜尋/更新用 MCP 工具即可。更新用 `update-note`（format: "html"），HTML 遵守上述格式規則。
 
 ## 更新筆記的標準流程
 
@@ -72,17 +84,22 @@ description: "Manages Apple Notes via MCP tools. Use when the user mentions 筆�
 ## HTML 格式範例
 
 ```html
-<h1>主標題</h1>
-<h2>段落標題</h2>
-<p>一般段落文字</p>
+<h1>筆記標題</h1>
+<div><i>日期或副標題</i></div>
+<div><br></div>
+<div><span style="font-size: 18px"><b>段落標題</b></span></div>
+<div>一般內文</div>
+<div><b>粗體</b>、<i>斜體</i></div>
 <ul>
-  <li>項目一</li>
-  <li>項目二</li>
+  <li>無序清單項目</li>
 </ul>
-<b>粗體</b>、<i>斜體</i>
+<ol>
+  <li>有序清單項目</li>
+</ol>
 ```
 
 不要用 markdown 語法（`#`、`**`、`-`），Apple Notes 不會渲染。
+詳細規則見 memory：`feedback_apple_notes_html_formatting.md`
 
 ## Checklist 讀取
 
