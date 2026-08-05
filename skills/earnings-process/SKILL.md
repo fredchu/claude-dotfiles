@@ -69,3 +69,9 @@ python3 /Users/fredchu/Documents/For_Claude/scripts/earnings-autopilot/download_
 - 預估每份逐字稿約 15K-30K output tokens
 - 可用 `--skip-research` 跳過研究摘要（省額度）
 - 如果翻譯失敗，暫存目錄會保留供檢查
+
+### 牛牛清單連動
+翻譯/摘要完財報後，如果內容顯示公司前景明顯改善或惡化，主動建議：
+- 前景改善：「要不要把 XXX 加到牛牛的 YYY 清單觀察？」
+- 前景惡化：「XXX 目前在牛牛的 YYY 清單，要不要移除？」
+用戶確認後，呼叫 futu-sync.py add/del 同步。
