@@ -20,6 +20,25 @@ Spec: `docs/superpowers/specs/2026-05-06-automl-v6-design.md`
 Algorithm: `ALGORITHM.md`
 Changelog: `CHANGELOG.md`
 
+## Shared quota gate
+
+`/automl` has an always-on quota gate. Use the shared helper first so this skill
+and Codex/Codex CLI share the same semantics:
+
+```bash
+/Users/fredchu/bin/agent-orch quota check --provider claude --threshold 85 --on-error fail-open --json
+```
+
+- exit 0 / `decision=="allow"`：continue the normal `tick_gate` loop.
+- exit 2 / `decision=="wait"`：transition lifecycle to quota-wait/paused as the
+  run state already supports, call `ScheduleWakeup` for JSON `resume_at`, and
+  resume from `.automl/<run_id>/state.json` after waking. Re-run quota check
+  before continuing.
+- `decision=="probe_failed"`：retry after `retry_at`/`retry_after_seconds`; do
+  not treat probe failure as a 5h reset.
+- If `agent-orch` is unavailable, fall back to the legacy
+  `scripts/quota_check.py` path for compatibility.
+
 ## Commands
 
 ```
