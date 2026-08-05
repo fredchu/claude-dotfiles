@@ -39,6 +39,61 @@ description: 管理 macOS Reminders。處理「提醒我 XXX」「記一下 XXX�
 
 現有 lists（供比對）：Family, Investing, 雜, 例行家事, dev, 攝影暗房, Work, 書, Gadgets, Cooking, Video Games
 
+## dev List 前綴 Convention
+
+dev list 使用前綴分組，模擬 Reminders app 的段落結構（EventKit API 不支援 sections/subtasks）。
+
+**新增 dev items 時必須加前綴：**
+
+| 前綴 | 代表 | 範例 |
+|------|------|------|
+| MK | MumbleKey 功能 | MK 術語自動學習 |
+| MKA | MumbleKey Agent | MKA Release manager |
+| MKP | MumbleKey 平台 | MKP Android client |
+| VF | VerbatimFlow | VF 實測 2B-6bit |
+| CC | Claude Code 工具 | CC loop 實驗 |
+| DC | Discord Bot | DC 修長訊息分段發送 |
+| EA | Earnings Autopilot | EA 移植逐字稿流程 |
+
+**格式**：`{前綴} {項目名稱}`（前綴和名稱之間用空格分隔）
+
+**搜尋特定群組**：`rem search "MK " --list "dev" --incomplete`
+
+**分組顯示**：讀取 dev list 後，用前綴分組呈現給用戶，而不是扁平列表。
+
+**排序 dev list**：用戶說「排序」「整理 dev list」「排一下」時，用 JXA 腳本按前綴分組排序。
+
+排序方法（JXA `move({to: list})` 會移到 list 末尾）：
+1. `rem list --list "dev" --incomplete -o json` 取得所有項目
+2. 按前綴排序：MK → MKA → MKP → VF → EA → CC → DC → 無前綴（同前綴內按名稱字母序）
+3. 按排好的順序依次 `move({to: devList})` → 先 move 的排前面
+
+```javascript
+// /tmp/sort_dev.js — 排序 dev list 的 JXA 腳本模板
+const app = Application("Reminders");
+const devList = app.lists.whose({name: "dev"})[0];
+const sortedNames = ["MK item1", "MK item2", "MKA item1", ...]; // Python 產生
+for (let i = 0; i < sortedNames.length; i++) {
+    try {
+        const rems = devList.reminders.whose({name: sortedNames[i], completed: false});
+        if (rems.length > 0) rems[0].move({to: devList});
+    } catch(e) {}
+}
+```
+
+Python 排序邏輯：
+```python
+prefix_order = {"MK": 0, "MKA": 1, "MKP": 2, "VF": 3, "EA": 4, "CC": 5, "DC": 6}
+def sort_key(item):
+    name = item["name"]
+    for prefix in sorted(prefix_order.keys(), key=len, reverse=True):  # longest first
+        if name.startswith(prefix + " "):
+            return (prefix_order[prefix], name)
+    return (99, name)
+```
+
+注意：longest prefix first 避免 MK 吃掉 MKA/MKP。
+
 ## 指令速查
 
 ```
