@@ -46,9 +46,10 @@ Fred，台灣桃園，自由工作者。深耕 AI 開發與金融交易領域，
 
 ## 派工（hard rule：動工前自問「這該派嗎」）
 
-- **預設派 Codex**（任一命中）：單檔 ≥100 行 deterministic 實作／已知 root cause 且修法想清楚的 bug fix／局部重構／補單函式 unit test／已有 spec 的實作
+- **預設派工**（任一命中）：單檔 ≥100 行 deterministic 實作／已知 root cause 且修法想清楚的 bug fix／局部重構／補單函式 unit test／已有 spec 的實作
 - **不派**：探索研究、跨 system 串接、需 LLM 取捨、互動式 debug。不確定 → 主 session
-- 入口：`/dispatch` skill；quota fallback：`/Users/fredchu/bin/codex-or-local`；**勿用舊 `codex exec --full-auto`**
+- 入口：`/dispatch` skill；**worker 預設依 packet MODE 路由**（2026-08-14 起：`worker` mode → codex Sol high、`reviewer/verifier/synthesizer` → pi Luna max；`--worker`/`DISPATCH_DEFAULT_WORKER` 覆寫。依據：同 packet 受控實驗 13.4x，詳 dispatch SKILL.md 沿革段）；**派工前必跑 preflight gate**（指令在 SKILL.md 3.5）；**勿用舊 `codex exec --full-auto`**
+- **pi 無 write-scope enforcement**（codex 有）→ pi 跑過的成果逐 hunk review diff 是**必要**不是保險；長期 dirty repo（For_Claude）過不了 clean-tree gate → 開 sparse worktree 派工（`__pycache__` 也會弄髒 tree，跳過 pi 時現在會印原因）
 - 指令、agent-orch quota gate、NON-GOALS 紀律、explore-first（fc-explore）、fork 前 wiki inject 全部細節 →
   `/Users/fredchu/Documents/For_Claude/company/_shared/references/dispatch-playbook.md`
 - 大量 Claude subagent fan-out（≥5 個）前先跑 agent-orch quota check（指令在 playbook）
